@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
 from pysat.card import ITotalizer
-from pysat.solvers import Cadical153, Glucose3
 
 from B2B_Instance import B2BInstance, B2BSATModel, read_instance
 
@@ -14,12 +14,13 @@ def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
 
 
 def _new_solver(clauses: list[list[int]], preferred: str = "cadical"):
+    solvers = import_module("pysat.solvers")
     if preferred == "glucose":
-        return Glucose3(bootstrap_with=clauses)
+        return solvers.Glucose3(bootstrap_with=clauses)
     try:
-        return Cadical153(bootstrap_with=clauses)
+        return solvers.Cadical153(bootstrap_with=clauses)
     except Exception:
-        return Glucose3(bootstrap_with=clauses)
+        return solvers.Glucose3(bootstrap_with=clauses)
 
 
 class B2BIncrementalSATSolver:
