@@ -188,7 +188,7 @@ def read_instance(path: str | Path, *, validate_meetingsx_business: bool = True)
 
     forbidden = [{slot - 1 for slot in slots if slot > 0} for slots in forbidden_raw]
     fixed = [None if slot == 0 else slot - 1 for slot in fixed_raw]
-    precedences = [{pred - 1 for pred in preds if pred > 0} for preds in precedences_raw]
+    precedences = compute_transitive_closure(precedences)
 
     meetings_by_business: list[list[int]] = [[] for _ in range(n_business)]
     for m, (p1, p2, _) in enumerate(requested):
@@ -552,6 +552,23 @@ class B2BSATModel:
                         cnf.append([-self.x(post, 0)])
                     else:
                         cnf.append([-self.x(post, post_t), self.prefix_done(pred, post_t - 1)])
+    
+    def compute_transitive_closure(precedences: list[set[int]]) -> list[set[int]]:
+
+        n = len(precedences)
+        closure = [set(preds) for preds in precedences]
+        changed = True
+        while changed:
+            changed = False
+            for v in range(n):
+                new_preds = set(closure[v])
+                for u in closure[v]:
+                    new_preds |= closure[u]
+                if new_preds != closure[v]:
+                    closure[v] = new_preds
+                    changed = True
+
+        return closure
 
     # Break semantics and implied constraints --------------------------
 
@@ -575,30 +592,36 @@ class B2BSATModel:
             if self.use_implied_1:
                 self._add_implied_constraint_1_for_participant(cnf, p)
 
-            # (31)-(34): meetingHeld prefix semantics.
-            u0 = self.used(p, 0)
-            h0 = self.held(p, 0)
-            cnf.append([u0, -h0])      # not used(0) -> not held(0)
-            cnf.append([-u0, h0])      # used(0) -> held(0)
-            for t in range(1, self.inst.n_total_slots):
-                hp = self.held(p, t - 1)
-                ht = self.held(p, t)
-                ut = self.used(p, t)
-                cnf.append([hp, ut, -ht])  # not hp and not ut -> not ht
-                cnf.append([-ut, ht])      # used -> held
-                cnf.append([-hp, ht])      # previous held -> held
 
-            # (35): endHole(p,t) <-> not used(p,t) and held(p,t) and used(p,t+1)
+            # (35) optimized:
+            # endHole(p,t) <->
+            #     not used(p,t)
+            #  and used(p,t+1)
+            #  and EXISTS tau<t : used(p,tau)
+
             holes_p: list[int] = []
-            for t in range(self.inst.n_total_slots - 1):
+            for t in range(1, self.inst.n_total_slots - 1):
+                if self.inst.n_meetings_business[p] <= 1:
+                    continue
                 b = self.hole(p, t)
                 ut = self.used(p, t)
-                ht = self.held(p, t)
                 unext = self.used(p, t + 1)
+
+                # b -> not used(t)
                 cnf.append([-b, -ut])
-                cnf.append([-b, ht])
+
+                # b -> used(t+1)
                 cnf.append([-b, unext])
-                cnf.append([ut, -ht, -unext, b])
+
+                # If hole then some previous slot was used
+                previous_used = [self.used(p, tau) for tau in range(t)]
+
+                cnf.append([-b] + previous_used)
+
+                # Reverse direction:
+                for prev_u in previous_used:
+                    cnf.append([-prev_u, ut, -unext,b])
+                    
                 holes_p.append(b)
 
             # Safe fixing from the CP/MIP observations: no possible break in trivial cases.
