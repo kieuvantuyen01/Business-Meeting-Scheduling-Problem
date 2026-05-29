@@ -575,30 +575,36 @@ class B2BSATModel:
             if self.use_implied_1:
                 self._add_implied_constraint_1_for_participant(cnf, p)
 
-            # (31)-(34): meetingHeld prefix semantics.
-            u0 = self.used(p, 0)
-            h0 = self.held(p, 0)
-            cnf.append([u0, -h0])      # not used(0) -> not held(0)
-            cnf.append([-u0, h0])      # used(0) -> held(0)
-            for t in range(1, self.inst.n_total_slots):
-                hp = self.held(p, t - 1)
-                ht = self.held(p, t)
-                ut = self.used(p, t)
-                cnf.append([hp, ut, -ht])  # not hp and not ut -> not ht
-                cnf.append([-ut, ht])      # used -> held
-                cnf.append([-hp, ht])      # previous held -> held
 
-            # (35): endHole(p,t) <-> not used(p,t) and held(p,t) and used(p,t+1)
+            # (35) optimized:
+            # endHole(p,t) <->
+            #     not used(p,t)
+            #  and used(p,t+1)
+            #  and EXISTS tau<t : used(p,tau)
+
             holes_p: list[int] = []
-            for t in range(self.inst.n_total_slots - 1):
+            for t in range(1, self.inst.n_total_slots - 1):
+                if self.inst.n_meetings_business[p] <= 1:
+                    continue
                 b = self.hole(p, t)
                 ut = self.used(p, t)
-                ht = self.held(p, t)
                 unext = self.used(p, t + 1)
+
+                # b -> not used(t)
                 cnf.append([-b, -ut])
-                cnf.append([-b, ht])
+
+                # b -> used(t+1)
                 cnf.append([-b, unext])
-                cnf.append([ut, -ht, -unext, b])
+
+                # If hole then some previous slot was used
+                previous_used = [self.used(p, tau) for tau in range(t)]
+
+                cnf.append([-b] + previous_used)
+
+                # Reverse direction:
+                for prev_u in previous_used:
+                    cnf.append([-prev_u, ut, -unext,b])
+                    
                 holes_p.append(b)
 
             # Safe fixing from the CP/MIP observations: no possible break in trivial cases.

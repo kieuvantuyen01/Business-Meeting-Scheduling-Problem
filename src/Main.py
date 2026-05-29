@@ -9,7 +9,7 @@ from typing import Any
 
 import IncrementalSAT_Solver
 import Multiple_SAT
-
+import MaxSAT_Solver
 # =========================================================
 # CONFIG
 # =========================================================
@@ -25,6 +25,7 @@ VARIANTS = [
 SOLVERS = [
     "incremental",
     "multiple",
+    "maxsat",
 ]
 
 PRECEDENCE_MODES = [
@@ -57,7 +58,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--solver",
-        choices=["incremental", "multiple", "all"],
+        choices=["incremental", "multiple","maxsat", "all"],
         default="all",
     )
 
@@ -256,7 +257,15 @@ def _worker(
                 encoding_variant=encoding_variant,
                 verbose=verbose,
             )
-
+        elif solver_name == "maxsat":
+            
+            result = MaxSAT_Solver.solve_b2b(
+                instance_or_path=instance_path,
+                fairness_limit=fairness_limit,
+                precedence_mode=precedence_mode,
+                encoding_variant=encoding_variant,
+                verbose=verbose,
+            )
         else:
 
             raise ValueError(
