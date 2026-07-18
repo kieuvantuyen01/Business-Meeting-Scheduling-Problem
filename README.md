@@ -37,6 +37,7 @@ python Main.py \
   --timeout 120 \
   --csv summary.csv
 ```
+python src/Main.py --instance data_table03_origin/forum-13.original.dzn --solver all --precedence-mode both --fairness 2 --timeout 120 --csv summary.csv
 
 Run only Incremental SAT with staircase precedence:
 
