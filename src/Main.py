@@ -88,7 +88,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fairness",
         type=int,
-        default=2,
+        default=1000,
         help="Fairness bound d. Use -1 to disable fairness.",
     )
 
@@ -703,7 +703,7 @@ def format_table3_cell(result: dict[str, Any]) -> str:
         result.get("status")
     )
     runtime = result.get("runtime_s")
-    breaks = result.get("total_breaks")
+    breaks = result.get("fairness_gap")
 
     if sat_result == "TIMEOUT":
         return f"TO {breaks if breaks is not None else '-'}"

@@ -1,52 +1,214 @@
-"""Standalone MaxSAT encoding for B2B scheduling with gap-slot fairness.
-
-The feasibility encoding is inherited from the original all-in-one maxsat.py.
-New objective:
-    minimize max_p G_p - min_p G_p
-where G_p is the number of empty time slots strictly between participant p's
-first and last meetings. The old hard fairness bound d=2 is intentionally removed.
-"""
-
-
 import sys
+import argparse
 from pysat.formula import CNF, WCNF
-from pysat.card import CardEnc, EncType, ITotalizer
 from pysat.examples.rc2 import RC2
+from pysat.card import CardEnc, EncType, ITotalizer
 from math import inf, sqrt
 import subprocess
 import time
 import os
 import glob
+import csv
+import threading
 
-# Get all input files
-input_files = sorted(glob.glob('./input/*.dzn'))
-# print(f"Found {len(input_files)} input files to process")
+try:
+    import psutil
+except ImportError:
+    # Chương trình vẫn chạy; cột memory sẽ để trống nếu chưa cài psutil.
+    psutil = None
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description=(
+            'Solve B2B instances with the ORG MaxSAT encoding and an optional '
+            'hard fairness-gap bound.'
+        )
+    )
+    parser.add_argument(
+        '--fairness',
+        type=int,
+        default=1000,
+        help=(
+            'Hard upper bound on max_p B(p) - min_p B(p). '
+            'Default: 1000. Use a negative value to disable the hard bound.'
+        ),
+    )
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+HARD_FAIRNESS_LIMIT = None if ARGS.fairness < 0 else ARGS.fairness
+
+# Folder chứa toàn bộ file .dzn
+INPUT_DIR = './data_table06_forb'
+
+# Folder chứa kết quả
+OUTPUT_DIR = './output'
+
+# Một bảng CSV tổng hợp cho toàn bộ instance, tương tự detailed CSV trong Main.
+CSV_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'ORG_new_results_table06.csv')
+
+# Giống Main.py: lấy peak RSS của tiến trình chạy instance và toàn bộ child process.
+MEMORY_SAMPLE_INTERVAL_S = 0.05
+MEMORY_METRIC = 'peak_process_tree_rss_mb'
+
+CSV_FIELDS = [
+    'instance',
+    'sat_result',
+    'status',
+    'total_runtime_s',
+    'input_parsing_s',
+    'constraint_building_s',
+    'solver_runtime_s',
+    'peak_memory_mb',
+    'memory_metric',
+    'n_vars',
+    'n_hard_clauses',
+    'n_soft_clauses',
+    'n_total_clauses',
+    'solver',
+    'solver_cost',
+    'fairness_gap',
+    'hard_fairness_limit',
+    'participant_gap_slots',
+    'assignment_by_meeting',
+    'schedule_by_slot',
+    'validation_status',
+    'error_type',
+    'error_message',
+]
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def _process_tree_rss_bytes(pid):
+    """RSS hiện tại của process pid và toàn bộ child process đệ quy."""
+    if psutil is None:
+        return None
+
+    try:
+        root = psutil.Process(pid)
+        processes = [root, *root.children(recursive=True)]
+    except (psutil.Error, OSError):
+        return None
+
+    total = 0
+    found = False
+    for process in processes:
+        try:
+            total += process.memory_info().rss
+            found = True
+        except (psutil.Error, OSError):
+            continue
+
+    return total if found else None
+
+
+class ProcessTreeMemorySampler:
+    """Lấy mẫu peak process-tree RSS trong lúc xử lý một instance."""
+
+    def __init__(self, pid, interval_s=MEMORY_SAMPLE_INTERVAL_S):
+        self.pid = pid
+        self.interval_s = interval_s
+        self.peak_rss_bytes = None
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def _sample_once(self):
+        rss = _process_tree_rss_bytes(self.pid)
+        if rss is not None:
+            self.peak_rss_bytes = max(self.peak_rss_bytes or 0, rss)
+
+    def _run(self):
+        while not self._stop_event.wait(self.interval_s):
+            self._sample_once()
+
+    def start(self):
+        self._sample_once()
+        if psutil is not None:
+            self._thread = threading.Thread(
+                target=self._run,
+                name='org-new-memory-sampler',
+                daemon=True,
+            )
+            self._thread.start()
+        return self
+
+    def stop_mb(self):
+        self._sample_once()
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=max(1.0, 2 * self.interval_s))
+        self._sample_once()
+        if self.peak_rss_bytes is None:
+            return None
+        return round(self.peak_rss_bytes / (1024 * 1024), 3)
+
+
+def serialize_list(values):
+    return ','.join(str(value) for value in values)
+
+
+def serialize_assignment(schedule):
+    return ','.join(
+        f'M{meeting}:T{slot}'
+        for meeting, slot in schedule
+    )
+
+
+def serialize_schedule(meetings_per_slot):
+    parts = []
+    for slot, meetings in enumerate(meetings_per_slot, start=1):
+        meeting_text = ' '.join(f'M{meeting}' for meeting in meetings)
+        parts.append(f'{slot}:{meeting_text}')
+    return ' | '.join(parts)
+
+
+def status_to_sat_result(status):
+    if status == 'OPTIMAL':
+        return 'SAT'
+    if status == 'UNSAT':
+        return 'UNSAT'
+    if status == 'TIMEOUT':
+        return 'TIMEOUT'
+    return 'ERROR'
+
+
+csv_results = []
+
+# Lấy toàn bộ file .dzn trong folder
+input_files = sorted(
+    glob.glob(os.path.join(INPUT_DIR, '*.dzn'))
+)
+
+print(f'Found {len(input_files)} input files')
 
 test_counter = 0
+
 for input_file in input_files:
     test_counter += 1
-    # Already solved these tests
-    if test_counter <= 0:
-        continue    
-    # Get base filename
+
     base_name = os.path.basename(input_file)
-    output_file = f'./example_output_gap_fairness/{base_name}'
-    
-    print(f"\n{'='*60}")
+
+    print(f"\n{'=' * 60}")
     print(f"Processing: {base_name}")
     print(f"Test number: {test_counter}")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     in_path = input_file
-    out_path = output_file
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    if 'original' not in in_path: # and 'prec15' not in in_path and 'prec25' not in in_path:
-        continue
-    # Reset variables for each input file
+
+    # Bắt đầu đo memory riêng cho instance hiện tại. Giá trị là peak RSS tuyệt đối
+    # của process ORG_new cộng toàn bộ child process (ví dụ UWrMaxSAT).
+    memory_sampler = ProcessTreeMemorySampler(os.getpid()).start()
+
+    # Không lọc tên file.
+    # Tất cả file .dzn đều được chạy.
+
     cnf = CNF()
     wcnf = WCNF()
     variable_size = 0
-    
+
     def read_input():
         with open(in_path) as f:
             lines = f.readlines()
@@ -553,6 +715,29 @@ for input_file in input_files:
         cnf.append([-maxGap[j + 1], maxGap[j]])
         cnf.append([-minGap[j + 1], minGap[j]])
 
+    # Optional hard fairness constraint, matching B2B_Instance:
+    #     sum_j difGap[j] <= HARD_FAIRNESS_LIMIT
+    # Since sum_j difGap[j] is exactly max_p B(p) - min_p B(p), this is
+    # equivalent to bounding the fairness gap directly.
+    fairness_lits = [difGap[j] for j in range(1, max_gap_slots + 1)]
+    fairness_constraint_clauses = 0
+    if HARD_FAIRNESS_LIMIT is not None:
+        before_fairness = len(cnf.clauses)
+        if HARD_FAIRNESS_LIMIT == 0:
+            cnf.extend([[-lit] for lit in fairness_lits])
+        elif HARD_FAIRNESS_LIMIT < len(fairness_lits):
+            fairness_encoding = CardEnc.atmost(
+                lits=fairness_lits,
+                bound=HARD_FAIRNESS_LIMIT,
+                encoding=EncType.seqcounter,
+                top_id=variable_size,
+            )
+            cnf.extend(fairness_encoding.clauses)
+            variable_size = max(variable_size, fairness_encoding.nv)
+        # If the bound is at least the number of objective literals, the
+        # constraint is tautological and B2B_Instance also adds no clauses.
+        fairness_constraint_clauses = len(cnf.clauses) - before_fairness
+
     # Imp1: The number of meetings of a participant p must equal nMeetingsBusiness[p] (43)
     for p in range(1, nBusiness + 1):
         lits = [y[p][t] for t in range(1, nTotalSlots + 1)]
@@ -597,6 +782,11 @@ for input_file in input_files:
     print(f"Total variables: {variable_size}")
     print(f"Total hard clauses: {len(cnf.clauses)}")
     print(f"Total soft clauses: {max_gap_slots}")
+    print(
+        'Hard fairness limit: '
+        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'} "
+        f"(added clauses: {fairness_constraint_clauses})"
+    )
 
     def solve_maxsat():
         local_bin = os.path.join(
@@ -629,29 +819,35 @@ for input_file in input_files:
 
                 if status == 'OPTIMUM FOUND' and model:
                     print(f"UWrMaxSAT optimum fairness gap: {solution_cost}")
-                    return model, solution_cost, 'UWrMaxSAT'
+                    return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL'
 
                 print(f"UWrMaxSAT status: {status}")
-                return None, None, 'UWrMaxSAT'
+                normalized_status = (status or '').upper()
+                csv_status = (
+                    'UNSAT'
+                    if normalized_status in {'UNSAT', 'UNSATISFIABLE'}
+                    else 'ERROR'
+                )
+                return None, None, 'UWrMaxSAT', csv_status
 
             except subprocess.TimeoutExpired:
                 print(f"TIMEOUT: UWrMaxSAT timeout after {TIMEOUT} seconds")
-                return None, None, 'UWrMaxSAT'
+                return None, None, 'UWrMaxSAT', 'TIMEOUT'
 
         # Portable fallback: same WCNF encoding, solved by PySAT RC2.
         print('UWrMaxSAT binary not found; using PySAT RC2 fallback.')
         with RC2(wcnf) as solver:
             model = solver.compute()
             if model is None:
-                return None, None, 'RC2'
-            return model, solver.cost, 'RC2'
+                return None, None, 'RC2', 'UNSAT'
+            return model, solver.cost, 'RC2', 'OPTIMAL'
 
     # Write the WCNF to a file
     wcnf.to_file('maxHS_gap_fairness.wcnf')
 
     # Solve
     solve_start = time.time()
-    assignment, solver_cost, solver_used = solve_maxsat()
+    assignment, solver_cost, solver_used, solve_status = solve_maxsat()
 
     # Independently recompute the new objective from the decoded schedule.
     participant_gap_slots = []
@@ -703,161 +899,201 @@ for input_file in input_files:
     print(f"TOTAL RUNTIME: {total_time:.4f} seconds ({total_time:.2f}s)")
     print(f"{'='*60}")
 
-    # Write output to file
-    with open(out_path, 'w') as f:
-        f.write(f"Input: {base_name}\n")
-        f.write(f"{'='*60}\n")
-        f.write(f"Total Runtime: {total_time:.4f} seconds\n")
-        f.write(f"Input parsing: {input_time - start_time:.4f} seconds\n")
-        f.write(f"Constraint building: {constraint_time - input_time:.4f} seconds\n")
-        f.write(f"MaxSAT solving: {solve_time - solve_start:.4f} seconds\n")
-        f.write(f"{'='*60}\n\n")
-        f.write("Total variables: {}\n".format(variable_size))
-        f.write("Total clauses: {}\n".format(len(cnf.clauses)))
-        f.write("Solver: {}\n".format(solver_used))
-        f.write("Objective (max gap slots - min gap slots): {}\n".format(
-            fairness_gap if fairness_gap is not None else "N/A"
-        ))
-        f.write("Participant gap-slot totals: {}\n".format(participant_gap_slots))
-        if assignment:
-            # Checker
-            f.write("SCHEDULE:\n")
-            for m in range(1, nMeetings + 1):
-                for t in range(1, nTotalSlots + 1):
-                    if x[m][t] in assignment:
-                        f.write(f"Meeting {m} → Time slot {t}\n")
-            # Create a mapping of variable numbers to their assigned values
-            var_assignment = {abs(var): (var > 0) for var in assignment}
-            f.write("Checking hard constraints...\n")
+    # Build schedule serializations for the aggregate CSV.
+    schedule_pairs = []
+    meetings_per_slot = [[] for _ in range(nTotalSlots)]
 
-            # Helper: variable truth in assignment
-            def is_true(var_id):
-                return var_assignment.get(var_id, False)
-
-            # Check hard constraints
-            # Each meeting happens exactly once
-            for m in range(1, nMeetings + 1):
-                count = sum(is_true(x[m][t]) for t in range(1, nTotalSlots + 1))
-                assert count == 1, f"Meeting {m} does not happen exactly once (count={count})"
-            
-            # No more than nTables meetings at the same time
+    if assignment:
+        positive_assignment = {lit for lit in assignment if lit > 0}
+        for m in range(1, nMeetings + 1):
             for t in range(1, nTotalSlots + 1):
-                count = sum(is_true(x[m][t]) for m in range(1, nMeetings + 1))
-                assert count <= nTables, f"More than {nTables} meetings at time slot {t} (count={count})"
-            
-            # At most one meeting at moment t for the same business
-            for p in range(1, nBusiness + 1):
-                for t in range(1, nTotalSlots + 1):
-                    count = sum(is_true(x[m][t]) for m in meetingsxBusiness[p])
-                    assert count <= 1, f"More than one meeting for business {p} at time slot {t} (count={count})"
-            
-            # Handle time session
-            for m in range(1, nMeetings + 1):
-                if requested[m][2] == 3: # No time restriction
-                    continue
-                elif requested[m][2] == 1: # Morning
-                    for t in range(nMorningSlots + 1, nTotalSlots + 1):
-                        assert not is_true(x[m][t]), f"Meeting {m} should be in the morning but is scheduled at time slot {t}"
-                else: # Afternoon
-                    for t in range(1, nMorningSlots + 1):
-                        assert not is_true(x[m][t]), f"Meeting {m} should be in the afternoon but is scheduled at time slot {t}"
+                if x[m][t] in positive_assignment:
+                    schedule_pairs.append((m, t))
+                    meetings_per_slot[t - 1].append(m)
 
-            # y constraints: exact count and x <-> y channeling.
-            for p in range(1, nBusiness + 1):
-                y_count = sum(is_true(y[p][t]) for t in range(1, nTotalSlots + 1))
-                assert y_count == nMeetingsBusiness[p], (
-                    f"Business {p} has wrong number of occupied slots in y "
-                    f"(got={y_count}, expected={nMeetingsBusiness[p]})"
-                )
-                for t in range(1, nTotalSlots + 1):
-                    has_x = any(is_true(x[m][t]) for m in meetingsxBusiness[p])
-                    assert is_true(y[p][t]) == has_x, (
-                        f"y[{p}][{t}] inconsistent with x variables "
-                        f"(y={is_true(y[p][t])}, has_x={has_x})"
-                    )
+    validation_status = 'NOT_RUN'
 
-            # Exact prefix/suffix and internal gap-slot semantics.
-            for p in range(1, nBusiness + 1):
-                busy = [is_true(y[p][t]) for t in range(1, nTotalSlots + 1)]
-                for t in range(1, nTotalSlots + 1):
-                    expected_prefix = any(busy[:t])
-                    expected_suffix = any(busy[t - 1:])
-                    assert is_true(prefix[p][t]) == expected_prefix, (
-                        f"prefix[{p}][{t}] inconsistent"
-                    )
-                    assert is_true(suffix[p][t]) == expected_suffix, (
-                        f"suffix[{p}][{t}] inconsistent"
-                    )
+    if assignment:
+        # Create a mapping of variable numbers to their assigned values
+        var_assignment = {abs(var): (var > 0) for var in assignment}
+        # Helper: variable truth in assignment
+        def is_true(var_id):
+            return var_assignment.get(var_id, False)
 
-                expected_count = 0
-                for t in range(2, nTotalSlots):
-                    expected_gap = any(busy[:t - 1]) and (not busy[t - 1]) and any(busy[t:])
-                    assert is_true(gap_slot[p][t]) == expected_gap, (
-                        f"gap_slot[{p}][{t}] inconsistent"
-                    )
-                    expected_count += int(expected_gap)
+        # Check hard constraints
+        # Each meeting happens exactly once
+        for m in range(1, nMeetings + 1):
+            count = sum(is_true(x[m][t]) for t in range(1, nTotalSlots + 1))
+            assert count == 1, f"Meeting {m} does not happen exactly once (count={count})"
+        
+        # No more than nTables meetings at the same time
+        for t in range(1, nTotalSlots + 1):
+            count = sum(is_true(x[m][t]) for m in range(1, nMeetings + 1))
+            assert count <= nTables, f"More than {nTables} meetings at time slot {t} (count={count})"
+        
+        # At most one meeting at moment t for the same business
+        for p in range(1, nBusiness + 1):
+            for t in range(1, nTotalSlots + 1):
+                count = sum(is_true(x[m][t]) for m in meetingsxBusiness[p])
+                assert count <= 1, f"More than one meeting for business {p} at time slot {t} (count={count})"
+        
+        # Handle time session
+        for m in range(1, nMeetings + 1):
+            if requested[m][2] == 3: # No time restriction
+                continue
+            elif requested[m][2] == 1: # Morning
+                for t in range(nMorningSlots + 1, nTotalSlots + 1):
+                    assert not is_true(x[m][t]), f"Meeting {m} should be in the morning but is scheduled at time slot {t}"
+            else: # Afternoon
+                for t in range(1, nMorningSlots + 1):
+                    assert not is_true(x[m][t]), f"Meeting {m} should be in the afternoon but is scheduled at time slot {t}"
 
-                assert expected_count == participant_gap_slots[p - 1], (
-                    f"Business {p} gap total mismatch: "
-                    f"encoded={expected_count}, recomputed={participant_gap_slots[p - 1]}"
+        # y constraints: exact count and x <-> y channeling.
+        for p in range(1, nBusiness + 1):
+            y_count = sum(is_true(y[p][t]) for t in range(1, nTotalSlots + 1))
+            assert y_count == nMeetingsBusiness[p], (
+                f"Business {p} has wrong number of occupied slots in y "
+                f"(got={y_count}, expected={nMeetingsBusiness[p]})"
+            )
+            for t in range(1, nTotalSlots + 1):
+                has_x = any(is_true(x[m][t]) for m in meetingsxBusiness[p])
+                assert is_true(y[p][t]) == has_x, (
+                    f"y[{p}][{t}] inconsistent with x variables "
+                    f"(y={is_true(y[p][t])}, has_x={has_x})"
                 )
 
-                for j in range(1, max_gap_slots + 1):
-                    assert is_true(sortedGap[p][j]) == (expected_count >= j), (
-                        f"sortedGap[{p}][{j}] inconsistent with gap total {expected_count}"
-                    )
+        # Exact prefix/suffix and internal gap-slot semantics.
+        for p in range(1, nBusiness + 1):
+            busy = [is_true(y[p][t]) for t in range(1, nTotalSlots + 1)]
+            for t in range(1, nTotalSlots + 1):
+                expected_prefix = any(busy[:t])
+                expected_suffix = any(busy[t - 1:])
+                assert is_true(prefix[p][t]) == expected_prefix, (
+                    f"prefix[{p}][{t}] inconsistent"
+                )
+                assert is_true(suffix[p][t]) == expected_suffix, (
+                    f"suffix[{p}][{t}] inconsistent"
+                )
 
-            # Exact maximum/minimum unary values and fairness-difference objective.
+            expected_count = 0
+            for t in range(2, nTotalSlots):
+                expected_gap = any(busy[:t - 1]) and (not busy[t - 1]) and any(busy[t:])
+                assert is_true(gap_slot[p][t]) == expected_gap, (
+                    f"gap_slot[{p}][{t}] inconsistent"
+                )
+                expected_count += int(expected_gap)
+
+            assert expected_count == participant_gap_slots[p - 1], (
+                f"Business {p} gap total mismatch: "
+                f"encoded={expected_count}, recomputed={participant_gap_slots[p - 1]}"
+            )
+
             for j in range(1, max_gap_slots + 1):
-                threshold_values = [
-                    is_true(sortedGap[p][j]) for p in range(1, nBusiness + 1)
-                ]
-                expected_max = any(threshold_values)
-                expected_min = all(threshold_values) if threshold_values else True
-                expected_dif = expected_max and (not expected_min)
-                assert is_true(maxGap[j]) == expected_max, f"maxGap[{j}] inconsistent"
-                assert is_true(minGap[j]) == expected_min, f"minGap[{j}] inconsistent"
-                assert is_true(difGap[j]) == expected_dif, f"difGap[{j}] inconsistent"
-
-            encoded_objective = sum(
-                is_true(difGap[j]) for j in range(1, max_gap_slots + 1)
-            )
-            assert encoded_objective == fairness_gap, (
-                f"Encoded objective={encoded_objective}, fairness_gap={fairness_gap}"
-            )
-
-            # Participant load bound per slot
-            for t in range(1, nTotalSlots + 1):
-                participants_at_t = sum(is_true(y[p][t]) for p in range(1, nBusiness + 1))
-                assert participants_at_t <= 2 * nTables, (
-                    f"Too many participants at slot {t} (count={participants_at_t}, bound={2*nTables})"
+                assert is_true(sortedGap[p][j]) == (expected_count >= j), (
+                    f"sortedGap[{p}][{j}] inconsistent with gap total {expected_count}"
                 )
 
-            # Check forbidden time slots
-            for p in range(1, nBusiness + 1):
-                for t in forbidden[p]:
-                    assert not is_true(y[p][t]), f"Business {p} has a meeting at forbidden time slot {t}"
-            
-            # Check fixed meetings
-            for m in range(1, nMeetings + 1):
-                if fixed[m] != 0:
-                    t = fixed[m]
-                    assert is_true(x[m][t]), f"Meeting {m} should be scheduled at time slot {t} but is not"
-            
-            # Check precedence constraints
-            for m in range(1, nMeetings + 1):
-                for prec in precedences[m]:
-                    prec_time = None
-                    m_time = None
-                    for t in range(1, nTotalSlots + 1):
-                        if is_true(x[prec][t]):
-                            prec_time = t
-                        if is_true(x[m][t]):
-                            m_time = t
-                    assert prec_time is not None and m_time is not None, f"Precedence constraint between meeting {prec} and {m} is not satisfied (prec_time={prec_time}, m_time={m_time})"
-                    assert prec_time < m_time, f"Meeting {prec} should be scheduled before meeting {m} (prec_time={prec_time}, m_time={m_time})"
-            f.write("All hard constraints are satisfied\n")
-        else:
-            f.write("NO SOLUTION FOUND\n")
-    
-    print(f"Output written to: {out_path}")
+        # Exact maximum/minimum unary values and fairness-difference objective.
+        for j in range(1, max_gap_slots + 1):
+            threshold_values = [
+                is_true(sortedGap[p][j]) for p in range(1, nBusiness + 1)
+            ]
+            expected_max = any(threshold_values)
+            expected_min = all(threshold_values) if threshold_values else True
+            expected_dif = expected_max and (not expected_min)
+            assert is_true(maxGap[j]) == expected_max, f"maxGap[{j}] inconsistent"
+            assert is_true(minGap[j]) == expected_min, f"minGap[{j}] inconsistent"
+            assert is_true(difGap[j]) == expected_dif, f"difGap[{j}] inconsistent"
+
+        encoded_objective = sum(
+            is_true(difGap[j]) for j in range(1, max_gap_slots + 1)
+        )
+        assert encoded_objective == fairness_gap, (
+            f"Encoded objective={encoded_objective}, fairness_gap={fairness_gap}"
+        )
+        if HARD_FAIRNESS_LIMIT is not None:
+            assert fairness_gap <= HARD_FAIRNESS_LIMIT, (
+                f"Fairness gap {fairness_gap} exceeds hard limit "
+                f"{HARD_FAIRNESS_LIMIT}"
+            )
+
+        # Participant load bound per slot
+        for t in range(1, nTotalSlots + 1):
+            participants_at_t = sum(is_true(y[p][t]) for p in range(1, nBusiness + 1))
+            assert participants_at_t <= 2 * nTables, (
+                f"Too many participants at slot {t} (count={participants_at_t}, bound={2*nTables})"
+            )
+
+        # Check forbidden time slots
+        for p in range(1, nBusiness + 1):
+            for t in forbidden[p]:
+                assert not is_true(y[p][t]), f"Business {p} has a meeting at forbidden time slot {t}"
+        
+        # Check fixed meetings
+        for m in range(1, nMeetings + 1):
+            if fixed[m] != 0:
+                t = fixed[m]
+                assert is_true(x[m][t]), f"Meeting {m} should be scheduled at time slot {t} but is not"
+        
+        # Check precedence constraints
+        for m in range(1, nMeetings + 1):
+            for prec in precedences[m]:
+                prec_time = None
+                m_time = None
+                for t in range(1, nTotalSlots + 1):
+                    if is_true(x[prec][t]):
+                        prec_time = t
+                    if is_true(x[m][t]):
+                        m_time = t
+                assert prec_time is not None and m_time is not None, f"Precedence constraint between meeting {prec} and {m} is not satisfied (prec_time={prec_time}, m_time={m_time})"
+                assert prec_time < m_time, f"Meeting {prec} should be scheduled before meeting {m} (prec_time={prec_time}, m_time={m_time})"
+        validation_status = 'PASSED'
+
+    peak_memory_mb = memory_sampler.stop_mb()
+    print(
+        'Peak process-tree RSS: '
+        f"{peak_memory_mb:.3f} MB" if peak_memory_mb is not None
+        else 'Peak process-tree RSS: N/A (install psutil to enable it)'
+    )
+
+    csv_results.append({
+        'instance': os.path.splitext(base_name)[0],
+        'sat_result': status_to_sat_result(solve_status),
+        'status': solve_status,
+        'total_runtime_s': round(total_time, 6),
+        'input_parsing_s': round(input_time - start_time, 6),
+        'constraint_building_s': round(constraint_time - input_time, 6),
+        'solver_runtime_s': round(solve_time - solve_start, 6),
+        'peak_memory_mb': peak_memory_mb,
+        'memory_metric': MEMORY_METRIC,
+        'n_vars': variable_size,
+        'n_hard_clauses': len(cnf.clauses),
+        'n_soft_clauses': max_gap_slots,
+        'n_total_clauses': len(cnf.clauses) + max_gap_slots,
+        'solver': solver_used,
+        'solver_cost': solver_cost,
+        'fairness_gap': fairness_gap,
+        'hard_fairness_limit': HARD_FAIRNESS_LIMIT,
+        'participant_gap_slots': serialize_list(participant_gap_slots),
+        'assignment_by_meeting': serialize_assignment(schedule_pairs),
+        'schedule_by_slot': serialize_schedule(meetings_per_slot),
+        'validation_status': validation_status,
+        'error_type': '',
+        'error_message': '',
+    })
+
+    print(
+        f"Result queued for CSV: {solve_status} | "
+        f"objective={fairness_gap if fairness_gap is not None else 'N/A'} | "
+        f"hard_fairness_limit="
+        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'}"
+    )
+
+
+# Xuất một bảng CSV tổng hợp sau khi chạy toàn bộ input.
+with open(CSV_OUTPUT_FILE, 'w', newline='', encoding='utf-8') as csv_file:
+    writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
+    writer.writeheader()
+    writer.writerows(csv_results)
+
+print(f"CSV exported to: {CSV_OUTPUT_FILE}")

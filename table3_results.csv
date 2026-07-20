@@ -1,7 +1,41 @@
 instance,staircase,solver,basic,imp1,imp2,imp12,imp12+
-tic-12.prec15,no,incremental,1.9 0,0.5 0,0.8 0,0.5 0,0.3 0
-tic-12.prec15,yes,incremental,1.6 0,0.5 0,1.1 0,0.5 0,0.2 0
-tic-12.prec15,no,maxsat,0.6 0,0.4 0,0.7 0,0.4 0,0.1 0
-tic-12.prec15,yes,maxsat,0.4 0,0.4 0,0.4 0,0.4 0,0.1 0
-tic-12.prec15,no,multiple,1.6 0,0.8 0,0.6 0,0.6 0,0.1 0
-tic-12.prec15,yes,multiple,0.4 0,0.5 0,0.4 0,0.5 0,0.2 0
+forum-13.prec15,yes,maxsat,-,-,-,-,2.2 0
+forum-13.prec25,yes,maxsat,-,-,-,-,UNSAT
+forum-13crafb.prec15,yes,maxsat,-,-,-,-,UNSAT
+forum-13crafb.prec25,yes,maxsat,-,-,-,-,UNSAT
+forum-13crafc.prec15,yes,maxsat,-,-,-,-,11.5 1
+forum-13crafc.prec25,yes,maxsat,-,-,-,-,UNSAT
+forum-14.prec15,yes,maxsat,-,-,-,-,4.1 4
+forum-14.prec25,yes,maxsat,-,-,-,-,UNSAT
+forumt-14.prec15,yes,maxsat,-,-,-,-,0.5 2
+forumt-14.prec25,yes,maxsat,-,-,-,-,0.5 2
+forumt-14crafc.prec15,yes,maxsat,-,-,-,-,0.4 2
+forumt-14crafc.prec25,yes,maxsat,-,-,-,-,0.4 2
+forumt-14crafd.prec15,yes,maxsat,-,-,-,-,0.5 2
+forumt-14crafd.prec25,yes,maxsat,-,-,-,-,0.7 2
+forumt-14crafe.prec15,yes,maxsat,-,-,-,-,0.6 2
+forumt-14crafe.prec25,yes,maxsat,-,-,-,-,1.1 2
+tic-12.prec15,yes,maxsat,-,-,-,-,0.2 0
+tic-12.prec25,yes,maxsat,-,-,-,-,0.1 0
+tic-12crafc.prec15,yes,maxsat,-,-,-,-,0.2 0
+tic-12crafc.prec25,yes,maxsat,-,-,-,-,0.3 0
+tic-13.prec15,yes,maxsat,-,-,-,-,0.4 0
+tic-13.prec25,yes,maxsat,-,-,-,-,0.4 0
+tic-13crafb.prec15,yes,maxsat,-,-,-,-,0.4 0
+tic-13crafb.prec25,yes,maxsat,-,-,-,-,0.7 0
+tic-13crafc.prec15,yes,maxsat,-,-,-,-,0.5 1
+tic-13crafc.prec25,yes,maxsat,-,-,-,-,1.0 1
+tic-14crafa.prec15,yes,maxsat,-,-,-,-,0.5 0
+tic-14crafa.prec25,yes,maxsat,-,-,-,-,1.4 0
+tic-14crafc.prec15,yes,maxsat,-,-,-,-,0.5 0
+tic-14crafc.prec25,yes,maxsat,-,-,-,-,0.6 0
+tic-14crafd.prec15,yes,maxsat,-,-,-,-,0.4 0
+tic-14crafd.prec25,yes,maxsat,-,-,-,-,1.3 0
+ticf-13crafa.prec15,yes,maxsat,-,-,-,-,3.8 0
+ticf-13crafa.prec25,yes,maxsat,-,-,-,-,UNSAT
+ticf-13crafb.prec15,yes,maxsat,-,-,-,-,UNSAT
+ticf-13crafb.prec25,yes,maxsat,-,-,-,-,UNSAT
+ticf-13crafc.prec15,yes,maxsat,-,-,-,-,68.4 1
+ticf-13crafc.prec25,yes,maxsat,-,-,-,-,UNSAT
+ticf-14crafa.prec15,yes,maxsat,-,-,-,-,682.3 0
+ticf-14crafa.prec25,yes,maxsat,-,-,-,-,UNSAT
