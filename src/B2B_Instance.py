@@ -9,10 +9,14 @@ from pysat.card import CardEnc, EncType
 from pysat.formula import CNF, IDPool, WCNF
 
 PrecedenceMode = Literal["traditional", "staircase"]
+PrecedenceEdgeMode = Literal["direct", "source-closure"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
+ObjectiveMode = Literal["idle-range", "lexicographic"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
+VALID_PRECEDENCE_EDGE_MODES = {"direct", "source-closure"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
+VALID_OBJECTIVE_MODES = {"idle-range", "lexicographic"}
 
 
 @dataclass(frozen=True)
@@ -55,24 +59,31 @@ class B2BInstance:
 class PrecedenceGraphInfo:
     direct_predecessors: list[set[int]]
     transitive_predecessors: list[set[int]]
+    source_augmented_predecessors: list[set[int]]
     successors: list[set[int]]
+    source_nodes: tuple[int, ...]
     cycle_nodes: tuple[int, ...]
     direct_edge_count: int
     transitive_edge_count: int
+    source_added_edge_count: int
+    source_augmented_edge_count: int
 
 
 @dataclass(frozen=True)
 class B2BSolutionStats:
-    """Schedule statistics for the total-break-slot objective.
+    """Schedule statistics for the internal-idle-slot range objective.
 
     ``participant_breaks[p]`` is retained for backward compatibility, but now
     stores the total number of idle time slots between consecutive meetings of
-    participant p, not the number of contiguous break groups.
+    participant p, not the number of contiguous break groups. ``fairness_gap``
+    is evaluated only over participants with at least two meetings.
     """
 
     total_breaks: int
     participant_breaks: list[int]
     fairness_gap: int
+    all_participant_idle_range: int
+    objective_participants: tuple[int, ...]
     meetings_per_slot: list[list[int]]
     busy_participants_per_slot: list[int]
 
@@ -85,6 +96,16 @@ class B2BSolutionStats:
     def participant_internal_idle_slots(self) -> list[int]:
         """Internal idle-slot count B(p) for every participant."""
         return self.participant_breaks
+
+    @property
+    def idle_range(self) -> int:
+        """Range of internal idle totals over the objective participant set."""
+        return self.fairness_gap
+
+    @property
+    def objective_participant_ids(self) -> tuple[int, ...]:
+        """One-based participant IDs used by the objective."""
+        return tuple(p + 1 for p in self.objective_participants)
 
     # Backward-compatible names used by the existing benchmark runner.
     @property
@@ -100,7 +121,10 @@ class B2BSolutionStats:
 class B2BModelArtifacts:
     cnf: CNF
     objective_lits: list[int]
+    secondary_objective_lits: list[int]
     objective_name: str
+    objective_mode: str
+    objective_participants: tuple[int, ...]
     fairness_limit: int | None
     fairness_gap_lits: list[int]
     hole_lits_by_participant: list[list[int]]
@@ -109,12 +133,15 @@ class B2BModelArtifacts:
     n_clauses: int
     encoding_variant: str
     precedence_mode: str
+    precedence_edge_mode: str
     enabled_constraints: list[str]
     initial_schedule_candidates: int
     reduced_schedule_candidates: int
     removed_schedule_candidates: int
     precedence_direct_edges: int
     precedence_transitive_edges: int
+    precedence_source_added_edges: int
+    precedence_encoded_edges: int
     precedence_cycle_nodes: tuple[int, ...]
 
 
@@ -311,7 +338,18 @@ def read_instance(path: str | Path, *, validate_meetingsx_business: bool = True)
 
 
 def build_precedence_graph(precedences: list[set[int]]) -> PrecedenceGraphInfo:
-    """Compute transitive closure, successors, and cycle information."""
+    """Compute direct, full-closure, and source-augmented precedence graphs.
+
+    Let ``E`` be the input edge set and let ``R`` contain the source vertices of
+    ``E``.  The source-augmented set is
+
+        E_R = E union {(r, v): r in R and r reaches v in E}.
+
+    Thus every original precedence is retained, while new shortcut arcs are
+    added only when their first endpoint is a source.  The full transitive
+    closure is retained for cycle detection and graph statistics; it is not the
+    edge set encoded by the ``source-closure`` variant.
+    """
 
     n = len(precedences)
     direct = [set(preds) for preds in precedences]
@@ -328,14 +366,28 @@ def build_precedence_graph(precedences: list[set[int]]) -> PrecedenceGraphInfo:
         for pred in preds:
             successors[pred].add(post)
 
+    source_nodes = tuple(v for v, preds in enumerate(direct) if not preds)
+    source_set = set(source_nodes)
+    source_augmented = [set(preds) for preds in direct]
+    for post, transitive_preds in enumerate(closure):
+        source_augmented[post].update(transitive_preds.intersection(source_set))
+
     cycle_nodes = tuple(v for v in range(n) if v in closure[v])
+    direct_edge_count = sum(map(len, direct))
+    source_augmented_edge_count = sum(map(len, source_augmented))
     return PrecedenceGraphInfo(
         direct_predecessors=direct,
         transitive_predecessors=closure,
+        source_augmented_predecessors=source_augmented,
         successors=successors,
+        source_nodes=source_nodes,
         cycle_nodes=cycle_nodes,
-        direct_edge_count=sum(map(len, direct)),
+        direct_edge_count=direct_edge_count,
         transitive_edge_count=sum(map(len, closure)),
+        source_added_edge_count=(
+            source_augmented_edge_count - direct_edge_count
+        ),
+        source_augmented_edge_count=source_augmented_edge_count,
     )
 
 
@@ -434,10 +486,13 @@ class B2BSATModel:
     created for a removed meeting-slot pair.
 
     Objective in this branch:
-        minimize max_p B(p) - min_p B(p),
+        minimize max_{p in P*} B(p) - min_{p in P*} B(p),
     where B(p) is the total number of idle time slots strictly between the first
-    and last meetings of participant p. Equivalently, if the ordered meeting
-    slots are t_1 < ... < t_k, then B(p) = sum_i (t_{i+1} - t_i - 1).
+    and last meetings of participant p and P* contains exactly the participants
+    with at least two meetings. Equivalently, if the ordered meeting slots are
+    t_1 < ... < t_k, then B(p) = sum_i (t_{i+1} - t_i - 1).
+    The optional ``lexicographic`` mode first proves this range optimum and then
+    minimizes sum_p B(p) without relaxing the primary optimum.
     ``fairness_limit`` is only an optional hard upper bound on that gap.
     """
 
@@ -447,24 +502,44 @@ class B2BSATModel:
         fairness_limit: int | None = None,
         precedence_mode: PrecedenceMode = "staircase",
         encoding_variant: EncodingVariant = "imp12+",
+        objective_mode: ObjectiveMode = "idle-range",
+        precedence_edge_mode: PrecedenceEdgeMode = "direct",
     ) -> None:
         if precedence_mode not in VALID_PRECEDENCE_MODES:
             raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
+        if precedence_edge_mode not in VALID_PRECEDENCE_EDGE_MODES:
+            raise ValueError(
+                f"Unknown precedence_edge_mode={precedence_edge_mode!r}"
+            )
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
+        if objective_mode not in VALID_OBJECTIVE_MODES:
+            raise ValueError(f"Unknown objective_mode={objective_mode!r}")
         if fairness_limit is not None and fairness_limit < 0:
             raise ValueError("fairness_limit must be non-negative or None")
 
         self.inst = inst
         self.fairness_limit = fairness_limit
         self.precedence_mode = precedence_mode
+        self.precedence_edge_mode = precedence_edge_mode
         self.encoding_variant = encoding_variant
+        self.objective_mode = objective_mode
+        self.objective_participants = tuple(
+            p
+            for p, meeting_count in enumerate(inst.n_meetings_business)
+            if meeting_count >= 2
+        )
         self.graph = build_precedence_graph(inst.precedences)
         (
             self._eligible_slots,
             self.initial_schedule_candidates,
             self.reduced_schedule_candidates,
         ) = reduce_domains_with_precedence(inst, self.graph)
+        self.precedence_predecessors = (
+            self.graph.direct_predecessors
+            if precedence_edge_mode == "direct"
+            else self.graph.source_augmented_predecessors
+        )
 
         self.vpool = IDPool()
         self.enabled_constraints: list[str] = []
@@ -632,7 +707,8 @@ class B2BSATModel:
         cnf = CNF()
         self.enabled_constraints = [
             "domain reduction: sessions, fixed meetings, forbidden slots",
-            "precedence graph: transitive closure, cycle detection, arc-consistent bounds",
+            "precedence domain propagation: fixed point over direct edges",
+            "full precedence closure: cycle detection and graph statistics only",
         ]
 
         if self.graph.cycle_nodes:
@@ -653,14 +729,27 @@ class B2BSATModel:
             hole_lits,
             fairness_cap=self.fairness_limit,
         )
-        # The number of true gap literals is exactly max_p B(p) - min_p B(p),
-        # where B(p) is the total number of internal idle slots of participant p.
+        # The number of true gap literals is exactly the range of B(p) over P*,
+        # where P* contains participants with at least two meetings.
         objective_lits = gap_lits
+        secondary_objective_lits = [
+            lit
+            for participant_lits in hole_lits
+            for lit in participant_lits
+        ]
+        objective_name = (
+            "internal_idle_slot_range_pstar"
+            if self.objective_mode == "idle-range"
+            else "lexicographic_internal_idle_range_pstar_then_idle_sum"
+        )
 
         self._artifacts = B2BModelArtifacts(
             cnf=cnf,
             objective_lits=objective_lits,
-            objective_name="total_break_slot_gap",
+            secondary_objective_lits=secondary_objective_lits,
+            objective_name=objective_name,
+            objective_mode=self.objective_mode,
+            objective_participants=self.objective_participants,
             fairness_limit=self.fairness_limit,
             fairness_gap_lits=gap_lits,
             hole_lits_by_participant=hole_lits,
@@ -669,6 +758,7 @@ class B2BSATModel:
             n_clauses=len(cnf.clauses),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
+            precedence_edge_mode=self.precedence_edge_mode,
             enabled_constraints=list(self.enabled_constraints),
             initial_schedule_candidates=self.initial_schedule_candidates,
             reduced_schedule_candidates=self.reduced_schedule_candidates,
@@ -677,12 +767,16 @@ class B2BSATModel:
             ),
             precedence_direct_edges=self.graph.direct_edge_count,
             precedence_transitive_edges=self.graph.transitive_edge_count,
+            precedence_source_added_edges=self.graph.source_added_edge_count,
+            precedence_encoded_edges=sum(
+                map(len, self.precedence_predecessors)
+            ),
             precedence_cycle_nodes=self.graph.cycle_nodes,
         )
         return self._artifacts
 
     def build_wcnf(self) -> WCNF:
-        """Build partial MaxSAT minimizing the max/min total-break-slot gap."""
+        """Build phase-1 MaxSAT minimizing the internal-idle range over P*."""
 
         artifacts = self.build_base_cnf()
         wcnf = WCNF()
@@ -770,9 +864,16 @@ class B2BSATModel:
     # Precedence --------------------------------------------------------
 
     def _add_precedences(self, cnf: CNF) -> None:
+        edge_description = (
+            "direct E"
+            if self.precedence_edge_mode == "direct"
+            else "source-augmented E_R"
+        )
         if self.precedence_mode == "traditional":
-            self.enabled_constraints.append("(28) traditional pairwise precedence")
-            for post, preds in enumerate(self.graph.direct_predecessors):
+            self.enabled_constraints.append(
+                f"(28) traditional pairwise precedence over {edge_description}"
+            )
+            for post, preds in enumerate(self.precedence_predecessors):
                 for pred in preds:
                     for pred_t in self._eligible_slots[pred]:
                         pred_lit = self.x(pred, pred_t)
@@ -780,8 +881,11 @@ class B2BSATModel:
                             if pred_t >= post_t:
                                 cnf.append([-pred_lit, -self.x(post, post_t)])
         else:
-            self.enabled_constraints.append("(28) staircase/support precedence over reduced domains")
-            for post, preds in enumerate(self.graph.direct_predecessors):
+            self.enabled_constraints.append(
+                "(28) staircase/support precedence over reduced domains "
+                f"and {edge_description}"
+            )
+            for post, preds in enumerate(self.precedence_predecessors):
                 for pred in preds:
                     pred_slots = self._eligible_slots[pred]
                     for post_t in self._eligible_slots[post]:
@@ -976,18 +1080,22 @@ class B2BSATModel:
         hole_lits_by_participant: list[list[int]],
         fairness_cap: int | None = None,
     ) -> tuple[list[list[int]], list[int]]:
-        """Encode max_p B(p) - min_p B(p) using unary thresholds.
+        """Encode the range of B(p) over P* using unary thresholds.
 
+        P* = {p : |M_p| >= 2}; participants outside P* cannot have an internal
+        idle slot and are intentionally excluded from the max/min calculation.
         B(p) is the total number of internal idle slots. At threshold k:
           sortedBreakSlot[p,k] <-> B(p) >= k
-          maxBreakSlots[k]     <-> OR_p sortedBreakSlot[p,k]
-          minBreakSlots[k]     <-> AND_p sortedBreakSlot[p,k]
+          maxBreakSlots[k]     <-> OR_{p in P*} sortedBreakSlot[p,k]
+          minBreakSlots[k]     <-> AND_{p in P*} sortedBreakSlot[p,k]
           difBreakSlots[k]     <-> maxBreakSlots[k] AND NOT minBreakSlots[k]
 
-        Therefore sum_k difBreakSlots[k] = max_p B(p) - min_p B(p).
+        Therefore sum_k difBreakSlots[k]
+          = max_{p in P*} B(p) - min_{p in P*} B(p).
+        The range of an empty or singleton P* is defined as zero.
         """
         self.enabled_constraints.append(
-            "exact unary total-break-slot counts and gap objective"
+            "exact unary internal-idle counts and range objective over P*"
         )
         sorted_by_participant: list[list[int]] = []
 
@@ -1007,7 +1115,13 @@ class B2BSATModel:
                 cnf.append([-output, sorted_lit])
             sorted_by_participant.append(sorted_p)
 
-        global_upper = max((len(group) for group in sorted_by_participant), default=0)
+        global_upper = max(
+            (
+                len(sorted_by_participant[p])
+                for p in self.objective_participants
+            ),
+            default=0,
+        )
         gap_lits: list[int] = []
 
         for k in range(1, global_upper + 1):
@@ -1018,7 +1132,7 @@ class B2BSATModel:
 
             threshold_lits = [
                 sorted_by_participant[p][k - 1]
-                for p in range(self.inst.n_business)
+                for p in self.objective_participants
                 if k <= len(sorted_by_participant[p])
             ]
 
@@ -1030,9 +1144,9 @@ class B2BSATModel:
             else:
                 cnf.append([-max_lit])
 
-            # minBreak[k] <-> AND over every participant. Missing threshold
-            # literals are constants false because that participant cannot reach k.
-            if len(threshold_lits) != self.inst.n_business:
+            # minBreak[k] <-> AND over P*. A missing threshold is constant false
+            # because that objective participant cannot reach level k.
+            if len(threshold_lits) != len(self.objective_participants):
                 cnf.append([-min_lit])
             else:
                 for sorted_lit in threshold_lits:
@@ -1047,7 +1161,7 @@ class B2BSATModel:
         if fairness_cap is not None:
             self._add_atmost_seqcounter(cnf, gap_lits, fairness_cap)
             self.enabled_constraints.append(
-                f"(40) optional hard fairness cap: gap <= {fairness_cap}"
+                f"optional hard IdleRange(P*) cap <= {fairness_cap}"
             )
 
         return sorted_by_participant, gap_lits
@@ -1067,6 +1181,16 @@ class B2BSATModel:
         artifacts = self.build_base_cnf()
         positives = {lit for lit in sat_model if lit > 0}
         return sum(1 for lit in artifacts.objective_lits if lit in positives)
+
+    def encoded_idle_sum(self, sat_model: list[int]) -> int:
+        """Return IdleSum encoded by the secondary objective literals."""
+        artifacts = self.build_base_cnf()
+        positives = {lit for lit in sat_model if lit > 0}
+        return sum(
+            1
+            for lit in artifacts.secondary_objective_lits
+            if lit in positives
+        )
 
     def objective_consistency_errors(
         self,
@@ -1097,6 +1221,35 @@ class B2BSATModel:
             )
         return errors
 
+    def secondary_objective_consistency_errors(
+        self,
+        sat_model: list[int],
+        stats: B2BSolutionStats,
+        *,
+        imposed_bound: int | None = None,
+        solver_cost: int | None = None,
+    ) -> list[str]:
+        """Cross-check the encoded IdleSum against the decoded schedule."""
+        encoded = self.encoded_idle_sum(sat_model)
+        expected = stats.total_internal_idle_slots
+        errors: list[str] = []
+        if encoded != expected:
+            errors.append(
+                "secondary objective encoding mismatch: "
+                f"encoded IdleSum={encoded}, schedule IdleSum={expected}"
+            )
+        if imposed_bound is not None and encoded > imposed_bound:
+            errors.append(
+                "secondary objective-bound violation: "
+                f"encoded IdleSum={encoded}, imposed bound={imposed_bound}"
+            )
+        if solver_cost is not None and solver_cost != encoded:
+            errors.append(
+                "secondary solver-cost mismatch: "
+                f"solver cost={solver_cost}, encoded IdleSum={encoded}"
+            )
+        return errors
+
     def compute_stats(self, assignment: list[int]) -> B2BSolutionStats:
         meetings_per_slot: list[list[int]] = [[] for _ in range(self.inst.n_total_slots)]
         for m, t in enumerate(assignment):
@@ -1111,12 +1264,27 @@ class B2BSATModel:
                 for left, right in zip(slots, slots[1:])
             )
 
+        objective_values = [
+            participant_breaks[p]
+            for p in self.objective_participants
+        ]
+        objective_range = (
+            max(objective_values) - min(objective_values)
+            if len(objective_values) >= 2
+            else 0
+        )
+        all_participant_range = (
+            max(participant_breaks) - min(participant_breaks)
+            if len(participant_breaks) >= 2
+            else 0
+        )
+
         return B2BSolutionStats(
             total_breaks=sum(participant_breaks),
             participant_breaks=participant_breaks,
-            fairness_gap=(
-                max(participant_breaks, default=0) - min(participant_breaks, default=0)
-            ),
+            fairness_gap=objective_range,
+            all_participant_idle_range=all_participant_range,
+            objective_participants=self.objective_participants,
             meetings_per_slot=meetings_per_slot,
             busy_participants_per_slot=[2 * len(ms) for ms in meetings_per_slot],
         )
@@ -1164,7 +1332,7 @@ class B2BSATModel:
             stats = self.compute_stats(assignment)
             if stats.fairness_gap > self.fairness_limit:
                 errors.append(
-                    f"total-break-slot gap {stats.fairness_gap} exceeds {self.fairness_limit}"
+                    f"IdleRange(P*) {stats.fairness_gap} exceeds {self.fairness_limit}"
                 )
         return errors
 
@@ -1187,16 +1355,27 @@ def _main() -> None:
         default="staircase",
     )
     parser.add_argument(
+        "--precedence-edges",
+        choices=sorted(VALID_PRECEDENCE_EDGE_MODES),
+        default="direct",
+    )
+    parser.add_argument(
         "--encoding-variant",
         choices=sorted(VALID_ENCODING_VARIANTS),
         default="imp12+",
+    )
+    parser.add_argument(
+        "--objective-mode",
+        choices=sorted(VALID_OBJECTIVE_MODES),
+        default="idle-range",
     )
     parser.add_argument(
         "--fairness",
         type=int,
         default=-1,
         help=(
-            "Optional hard cap on max/min total break-slot difference; "
+            "Optional hard cap on the internal-idle range over participants "
+            "with at least two meetings; "
             "negative means no cap"
         ),
     )
@@ -1214,12 +1393,15 @@ def _main() -> None:
         fairness_limit=None if args.fairness < 0 else args.fairness,
         precedence_mode=args.precedence_mode,
         encoding_variant=args.encoding_variant,
+        objective_mode=args.objective_mode,
+        precedence_edge_mode=args.precedence_edges,
     )
     artifacts = model.build_base_cnf()
 
     print(f"instance={inst.instance_name}")
     print(f"variant={artifacts.encoding_variant}")
     print(f"precedence_mode={artifacts.precedence_mode}")
+    print(f"precedence_edge_mode={artifacts.precedence_edge_mode}")
     print(
         "schedule_candidates="
         f"{artifacts.reduced_schedule_candidates}/{artifacts.initial_schedule_candidates} "
@@ -1228,13 +1410,19 @@ def _main() -> None:
     print(
         "precedence_edges="
         f"direct:{artifacts.precedence_direct_edges}, "
-        f"closure:{artifacts.precedence_transitive_edges}"
+        f"source_added:{artifacts.precedence_source_added_edges}, "
+        f"encoded:{artifacts.precedence_encoded_edges}, "
+        f"full_closure_reference:{artifacts.precedence_transitive_edges}"
     )
     print(f"precedence_cycle_nodes={[v + 1 for v in artifacts.precedence_cycle_nodes]}")
     print(f"vars={artifacts.n_vars}")
     print(f"clauses={artifacts.n_clauses}")
     print(f"objective={artifacts.objective_name}")
     print(f"objective_literals={len(artifacts.objective_lits)}")
+    print(
+        "secondary_objective_literals="
+        f"{len(artifacts.secondary_objective_lits)}"
+    )
     print("enabled_constraints=")
     for item in artifacts.enabled_constraints:
         print(f"  - {item}")

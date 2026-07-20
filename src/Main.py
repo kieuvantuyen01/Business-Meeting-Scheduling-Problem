@@ -41,6 +41,16 @@ PRECEDENCE_MODES = [
     "staircase",
 ]
 
+PRECEDENCE_EDGE_MODES = [
+    "direct",
+    "source-closure",
+]
+
+OBJECTIVE_MODES = [
+    "idle-range",
+    "lexicographic",
+]
+
 MEMORY_SAMPLE_INTERVAL_S = 0.05
 QUEUE_RESULT_GRACE_S = 1.0
 
@@ -80,6 +90,26 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--precedence-edges",
+        choices=[*PRECEDENCE_EDGE_MODES, "both"],
+        default="direct",
+        help=(
+            "Use direct precedence edges E, or E_R=E plus reachability "
+            "shortcuts whose first endpoint is a source vertex."
+        ),
+    )
+
+    parser.add_argument(
+        "--objective-mode",
+        choices=[*OBJECTIVE_MODES, "both"],
+        default="idle-range",
+        help=(
+            "Optimize IdleRange(P*) only, or lexicographically optimize "
+            "(IdleRange(P*), IdleSum)."
+        ),
+    )
+
+    parser.add_argument(
         "--encoding-variant",
         choices=VARIANTS + ["all"],
         default="all",
@@ -88,8 +118,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fairness",
         type=int,
-        default=1000,
-        help="Fairness bound d. Use -1 to disable fairness.",
+        default=-1,
+        help=(
+            "Optional hard cap on IdleRange(P*). The default -1 disables the "
+            "cap because IdleRange(P*) is already the optimized objective."
+        ),
     )
 
     parser.add_argument(
@@ -137,6 +170,14 @@ def selected_solvers(choice: str) -> list[str]:
 
 def selected_precedence_modes(choice: str) -> list[str]:
     return PRECEDENCE_MODES if choice == "both" else [choice]
+
+
+def selected_precedence_edge_modes(choice: str) -> list[str]:
+    return PRECEDENCE_EDGE_MODES if choice == "both" else [choice]
+
+
+def selected_objective_modes(choice: str) -> list[str]:
+    return OBJECTIVE_MODES if choice == "both" else [choice]
 
 
 def selected_variants(choice: str) -> list[str]:
@@ -316,7 +357,9 @@ def _create_solver_object(
     instance_path: str,
     fairness_limit: int | None,
     precedence_mode: str,
+    precedence_edge_mode: str,
     encoding_variant: str,
+    objective_mode: str,
 ) -> tuple[Any, Any | None]:
     module, class_names = _solver_module_and_classes(solver_name)
 
@@ -329,7 +372,9 @@ def _create_solver_object(
             instance_or_path=instance_path,
             fairness_limit=fairness_limit,
             precedence_mode=precedence_mode,
+            precedence_edge_mode=precedence_edge_mode,
             encoding_variant=encoding_variant,
+            objective_mode=objective_mode,
         )
         return module, solver_object
 
@@ -352,6 +397,46 @@ def _artifact_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "n_hard_clauses": hard_clauses,
         "n_soft_clauses": soft_clauses,
         "n_optimization_clauses": 0,
+        "objective": getattr(artifacts, "objective_name", None),
+        "objective_mode": getattr(artifacts, "objective_mode", None),
+        "objective_participant_count": len(
+            getattr(artifacts, "objective_participants", ())
+        ),
+        "objective_participants": serialize_list(
+            [
+                p + 1
+                for p in getattr(artifacts, "objective_participants", ())
+            ]
+        ),
+        "precedence_edge_mode": getattr(
+            artifacts,
+            "precedence_edge_mode",
+            None,
+        ),
+        "precedence_direct_edges": getattr(
+            artifacts,
+            "precedence_direct_edges",
+            None,
+        ),
+        "precedence_source_added_edges": getattr(
+            artifacts,
+            "precedence_source_added_edges",
+            None,
+        ),
+        "precedence_encoded_edges": getattr(
+            artifacts,
+            "precedence_encoded_edges",
+            None,
+        ),
+        "precedence_full_closure_edges": getattr(
+            artifacts,
+            "precedence_transitive_edges",
+            None,
+        ),
+        "n_primary_objective_lits": len(objective_lits),
+        "n_secondary_objective_lits": len(
+            getattr(artifacts, "secondary_objective_lits", []) or []
+        ),
     }
     _finalize_formula_metrics(metadata)
     return metadata
@@ -361,7 +446,9 @@ def _build_worker_payload(
     result: dict[str, Any],
     solver_name: str,
     precedence_mode: str,
+    precedence_edge_mode: str,
     encoding_variant: str,
+    objective_mode: str,
     runtime_s: float,
 ) -> dict[str, Any]:
     stats = result.get("stats")
@@ -371,10 +458,25 @@ def _build_worker_payload(
         "status": result.get("status", "ERROR"),
         "solver": solver_name,
         "precedence_mode": precedence_mode,
+        "precedence_edge_mode": precedence_edge_mode,
         "encoding_variant": encoding_variant,
         "runtime_s": round(runtime_s, 6),
+        "objective": result.get("objective"),
+        "objective_mode": result.get("objective_mode", objective_mode),
+        "secondary_objective_value": result.get("secondary_objective_value"),
+        "secondary_proven_optimum": result.get("secondary_proven_optimum"),
         "total_breaks": None if stats is None else stats.total_breaks,
         "fairness_gap": None if stats is None else stats.fairness_gap,
+        "idle_range": None if stats is None else stats.idle_range,
+        "all_participant_idle_range": (
+            None if stats is None else stats.all_participant_idle_range
+        ),
+        "objective_participant_count": (
+            None if stats is None else len(stats.objective_participants)
+        ),
+        "objective_participants": (
+            "" if stats is None else serialize_list(stats.objective_participant_ids)
+        ),
         "participant_breaks": (
             "" if stats is None else serialize_list(stats.participant_breaks)
         ),
@@ -400,6 +502,16 @@ def _build_worker_payload(
             0,
         ),
         "n_total_clauses": result.get("n_total_clauses"),
+        "n_primary_objective_lits": result.get("n_primary_objective_lits"),
+        "n_secondary_objective_lits": result.get("n_secondary_objective_lits"),
+        "precedence_direct_edges": result.get("precedence_direct_edges"),
+        "precedence_source_added_edges": result.get(
+            "precedence_source_added_edges"
+        ),
+        "precedence_encoded_edges": result.get("precedence_encoded_edges"),
+        "precedence_full_closure_edges": result.get(
+            "precedence_full_closure_edges"
+        ),
         "enabled_constraints": " | ".join(
             result.get("enabled_constraints", [])
         ),
@@ -417,7 +529,9 @@ def _worker(
     instance_path: str,
     fairness_limit: int | None,
     precedence_mode: str,
+    precedence_edge_mode: str,
     encoding_variant: str,
+    objective_mode: str,
     verbose: bool,
     queue: mp.Queue,
 ) -> None:
@@ -429,7 +543,9 @@ def _worker(
             instance_path=instance_path,
             fairness_limit=fairness_limit,
             precedence_mode=precedence_mode,
+            precedence_edge_mode=precedence_edge_mode,
             encoding_variant=encoding_variant,
+            objective_mode=objective_mode,
         )
 
         if solver_object is not None:
@@ -446,7 +562,9 @@ def _worker(
                 instance_or_path=instance_path,
                 fairness_limit=fairness_limit,
                 precedence_mode=precedence_mode,
+                precedence_edge_mode=precedence_edge_mode,
                 encoding_variant=encoding_variant,
+                objective_mode=objective_mode,
                 verbose=verbose,
             )
 
@@ -455,7 +573,9 @@ def _worker(
                 result=result,
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
+                precedence_edge_mode=precedence_edge_mode,
                 encoding_variant=encoding_variant,
+                objective_mode=objective_mode,
                 runtime_s=time.perf_counter() - started,
             )
         )
@@ -467,10 +587,23 @@ def _worker(
             "sat_result": "ERROR",
             "solver": solver_name,
             "precedence_mode": precedence_mode,
+            "precedence_edge_mode": precedence_edge_mode,
             "encoding_variant": encoding_variant,
             "runtime_s": round(time.perf_counter() - started, 6),
+            "objective": (
+                "internal_idle_slot_range_pstar"
+                if objective_mode == "idle-range"
+                else "lexicographic_internal_idle_range_pstar_then_idle_sum"
+            ),
+            "objective_mode": objective_mode,
+            "secondary_objective_value": None,
+            "secondary_proven_optimum": None,
             "total_breaks": None,
             "fairness_gap": None,
+            "idle_range": None,
+            "all_participant_idle_range": None,
+            "objective_participant_count": None,
+            "objective_participants": "",
             "participant_breaks": "",
             "busy_participants_per_slot": "",
             "assignment": "",
@@ -549,7 +682,9 @@ def _base_terminal_payload(
     status: str,
     solver_name: str,
     precedence_mode: str,
+    precedence_edge_mode: str,
     encoding_variant: str,
+    objective_mode: str,
     runtime_s: float,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -557,10 +692,19 @@ def _base_terminal_payload(
         "sat_result": status_to_sat_result(status),
         "solver": solver_name,
         "precedence_mode": precedence_mode,
+        "precedence_edge_mode": precedence_edge_mode,
         "encoding_variant": encoding_variant,
         "runtime_s": round(runtime_s, 6),
+        "objective": None,
+        "objective_mode": objective_mode,
+        "secondary_objective_value": None,
+        "secondary_proven_optimum": None,
         "total_breaks": None,
         "fairness_gap": None,
+        "idle_range": None,
+        "all_participant_idle_range": None,
+        "objective_participant_count": None,
+        "objective_participants": None,
         "participant_breaks": "",
         "busy_participants_per_slot": "",
         "assignment": "",
@@ -585,7 +729,9 @@ def run_with_timeout(
     instance_path: Path,
     fairness_limit: int | None,
     precedence_mode: str,
+    precedence_edge_mode: str,
     encoding_variant: str,
+    objective_mode: str,
     timeout_s: int,
     verbose: bool,
 ) -> dict[str, Any]:
@@ -598,7 +744,9 @@ def run_with_timeout(
             str(instance_path),
             fairness_limit,
             precedence_mode,
+            precedence_edge_mode,
             encoding_variant,
+            objective_mode,
             verbose,
             queue,
         ),
@@ -644,7 +792,9 @@ def run_with_timeout(
             status="TIMEOUT",
             solver_name=solver_name,
             precedence_mode=precedence_mode,
+            precedence_edge_mode=precedence_edge_mode,
             encoding_variant=encoding_variant,
+            objective_mode=objective_mode,
             runtime_s=time.perf_counter() - started,
         )
     else:
@@ -666,7 +816,9 @@ def run_with_timeout(
                 status="ERROR",
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
+                precedence_edge_mode=precedence_edge_mode,
                 encoding_variant=encoding_variant,
+                objective_mode=objective_mode,
                 runtime_s=time.perf_counter() - started,
             )
             result_payload["error_type"] = "NoWorkerPayload"
@@ -703,32 +855,37 @@ def format_table3_cell(result: dict[str, Any]) -> str:
         result.get("status")
     )
     runtime = result.get("runtime_s")
-    breaks = result.get("fairness_gap")
+    objective_value = result.get("idle_range")
+    if objective_value is None:
+        objective_value = result.get("fairness_gap")
 
     if sat_result == "TIMEOUT":
-        return f"TO {breaks if breaks is not None else '-'}"
+        return f"TO {objective_value if objective_value is not None else '-'}"
 
     if sat_result == "UNSAT":
         return "UNSAT"
 
     if sat_result == "SAT":
         if runtime is None:
-            return f"SAT ? {breaks}"
-        return f"{runtime:.1f} {breaks}"
+            return f"SAT ? {objective_value}"
+        return f"{runtime:.1f} {objective_value}"
 
     return "ERR"
 
 
 def print_detailed_results(results: list[dict[str, Any]]) -> None:
     print("\n")
-    print("=" * 151)
+    width = 190
+    print("=" * width)
     print("DETAILED PER-RUN RESULTS")
-    print("=" * 151)
+    print("=" * width)
 
     header = (
         f"{'instance':<28}"
         f"{'solver':<13}"
         f"{'precedence':<13}"
+        f"{'edges':<17}"
+        f"{'objective':<16}"
         f"{'variant':<10}"
         f"{'result':<10}"
         f"{'time(s)':>12}"
@@ -737,7 +894,7 @@ def print_detailed_results(results: list[dict[str, Any]]) -> None:
         f"{'peak memory(MB)':>18}"
     )
     print(header)
-    print("-" * 151)
+    print("-" * width)
 
     for row in results:
         runtime = row.get("runtime_s")
@@ -749,6 +906,8 @@ def print_detailed_results(results: list[dict[str, Any]]) -> None:
             f"{row['instance']:<28}"
             f"{row['solver']:<13}"
             f"{row['precedence_mode']:<13}"
+            f"{row['precedence_edge_mode']:<17}"
+            f"{row['objective_mode']:<16}"
             f"{row['encoding_variant']:<10}"
             f"{row.get('sat_result', 'ERROR'):<10}"
             f"{runtime_text:>12}"
@@ -757,7 +916,7 @@ def print_detailed_results(results: list[dict[str, Any]]) -> None:
             f"{memory_text:>18}"
         )
 
-    print("=" * 151)
+    print("=" * width)
 
 
 def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
@@ -777,10 +936,25 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "memory_metric",
         "solver",
         "precedence_mode",
+        "precedence_edge_mode",
         "staircase",
         "encoding_variant",
+        "objective",
+        "objective_mode",
+        "secondary_objective_value",
+        "secondary_proven_optimum",
+        "objective_participant_count",
+        "objective_participants",
         "total_breaks",
         "fairness_gap",
+        "idle_range",
+        "all_participant_idle_range",
+        "precedence_direct_edges",
+        "precedence_source_added_edges",
+        "precedence_encoded_edges",
+        "precedence_full_closure_edges",
+        "n_primary_objective_lits",
+        "n_secondary_objective_lits",
         "participant_breaks",
         "busy_participants_per_slot",
         "assignment",
@@ -823,6 +997,10 @@ def main() -> None:
     instances = collect_instances(args.instance, args.data_dir)
     solver_list = selected_solvers(args.solver)
     precedence_modes = selected_precedence_modes(args.precedence_mode)
+    precedence_edge_modes = selected_precedence_edge_modes(
+        args.precedence_edges
+    )
+    objective_modes = selected_objective_modes(args.objective_mode)
     variants = selected_variants(args.encoding_variant)
 
     results: list[dict[str, Any]] = []
@@ -831,6 +1009,8 @@ def main() -> None:
         len(instances)
         * len(solver_list)
         * len(precedence_modes)
+        * len(precedence_edge_modes)
+        * len(objective_modes)
         * len(variants)
     )
     current_run = 0
@@ -851,50 +1031,57 @@ def main() -> None:
         for precedence_mode in precedence_modes:
             staircase = "yes" if precedence_mode == "staircase" else "no"
 
-            for solver_name in solver_list:
-                for variant in variants:
-                    current_run += 1
+            for precedence_edge_mode in precedence_edge_modes:
+                for objective_mode in objective_modes:
+                    for solver_name in solver_list:
+                        for variant in variants:
+                            current_run += 1
 
-                    print(
-                        f"\n[{current_run}/{total_runs}] "
-                        f"{instance_name} | "
-                        f"{solver_name} | "
-                        f"{precedence_mode} | "
-                        f"{variant}"
-                    )
+                            print(
+                                f"\n[{current_run}/{total_runs}] "
+                                f"{instance_name} | "
+                                f"{solver_name} | "
+                                f"{precedence_mode} | "
+                                f"{precedence_edge_mode} | "
+                                f"{objective_mode} | "
+                                f"{variant}"
+                            )
 
-                    result = run_with_timeout(
-                        solver_name=solver_name,
-                        instance_path=instance_path,
-                        fairness_limit=fairness_limit,
-                        precedence_mode=precedence_mode,
-                        encoding_variant=variant,
-                        timeout_s=args.timeout,
-                        verbose=args.verbose,
-                    )
+                            result = run_with_timeout(
+                                solver_name=solver_name,
+                                instance_path=instance_path,
+                                fairness_limit=fairness_limit,
+                                precedence_mode=precedence_mode,
+                                precedence_edge_mode=precedence_edge_mode,
+                                encoding_variant=variant,
+                                objective_mode=objective_mode,
+                                timeout_s=args.timeout,
+                                verbose=args.verbose,
+                            )
 
-                    row = {
-                        "instance": instance_name,
-                        "staircase": staircase,
-                        **result,
-                    }
-                    results.append(row)
+                            row = {
+                                "instance": instance_name,
+                                "staircase": staircase,
+                                **result,
+                            }
+                            results.append(row)
 
-                    print(
-                        f"   result={result.get('sat_result')} | "
-                        f"status={result.get('status')} | "
-                        f"time={result.get('runtime_s')}s | "
-                        f"variables={_format_number(result.get('n_vars'))} | "
-                        f"clauses={_format_number(result.get('n_total_clauses'))} | "
-                        f"memory={_format_memory(result.get('peak_memory_mb'))} | "
-                        f"breaks={result.get('total_breaks')}"
-                    )
+                            print(
+                                f"   result={result.get('sat_result')} | "
+                                f"status={result.get('status')} | "
+                                f"time={result.get('runtime_s')}s | "
+                                f"variables={_format_number(result.get('n_vars'))} | "
+                                f"clauses={_format_number(result.get('n_total_clauses'))} | "
+                                f"memory={_format_memory(result.get('peak_memory_mb'))} | "
+                                f"IdleRange(P*)={result.get('idle_range')} | "
+                                f"IdleSum={result.get('total_breaks')}"
+                            )
 
-                    if result.get("status") == "ERROR":
-                        print(
-                            f"   error={result.get('error_type')}: "
-                            f"{result.get('error_message')}"
-                        )
+                            if result.get("status") == "ERROR":
+                                print(
+                                    f"   error={result.get('error_type')}: "
+                                    f"{result.get('error_message')}"
+                                )
 
     # =====================================================
     # DETAILED OUTPUT
@@ -914,13 +1101,15 @@ def main() -> None:
     # AGGREGATE TABLE 3
     # =====================================================
 
-    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
 
     for result in results:
         key = (
             result["instance"],
             result["staircase"],
             result["solver"],
+            result["precedence_edge_mode"],
+            result["objective_mode"],
         )
 
         if key not in grouped:
@@ -928,6 +1117,8 @@ def main() -> None:
                 "instance": result["instance"],
                 "staircase": result["staircase"],
                 "solver": result["solver"],
+                "precedence_edges": result["precedence_edge_mode"],
+                "objective": result["objective_mode"],
             }
 
         grouped[key][result["encoding_variant"]] = format_table3_cell(result)
@@ -943,6 +1134,8 @@ def main() -> None:
             item["instance"],
             item["solver"],
             item["staircase"],
+            item["precedence_edges"],
+            item["objective"],
         )
     )
 
@@ -953,6 +1146,8 @@ def main() -> None:
         f"{'instance':<30}"
         f"{'stairs':<10}"
         f"{'solver':<15}"
+        f"{'edges':<18}"
+        f"{'objective':<16}"
     )
     for variant in VARIANTS:
         header += f"{variant:<18}"
@@ -964,6 +1159,8 @@ def main() -> None:
             f"{row['instance']:<30}"
             f"{row['staircase']:<10}"
             f"{row['solver']:<15}"
+            f"{row['precedence_edges']:<18}"
+            f"{row['objective']:<16}"
         )
         for variant in VARIANTS:
             line += f"{row[variant]:<18}"
@@ -977,7 +1174,14 @@ def main() -> None:
 
     csv_path = Path(args.csv)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    csv_fields = ["instance", "staircase", "solver", *VARIANTS]
+    csv_fields = [
+        "instance",
+        "staircase",
+        "solver",
+        "precedence_edges",
+        "objective",
+        *VARIANTS,
+    ]
 
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=csv_fields)
