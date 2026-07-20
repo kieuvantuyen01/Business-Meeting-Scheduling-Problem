@@ -2,7 +2,7 @@ import sys
 import argparse
 from pysat.formula import CNF, WCNF
 from pysat.examples.rc2 import RC2
-from pysat.card import CardEnc, EncType, ITotalizer
+from pysat.card import CardEnc, EncType
 from math import inf, sqrt
 import subprocess
 import time
@@ -21,24 +21,29 @@ except ImportError:
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            'Solve B2B instances with the ORG MaxSAT encoding and an optional '
-            'hard fairness-gap bound.'
+            'Solve B2B instances with the paper-style ORG MaxSAT encoding. '
+            "The objective minimizes the gap between participants' total "
+            'internal idle-slot counts; no hard fairness constraint is added.'
         )
     )
+    # Kept only so old command lines still parse. The hard fairness constraint
+    # has been removed completely and this value is intentionally ignored.
     parser.add_argument(
         '--fairness',
         type=int,
-        default=1000,
-        help=(
-            'Hard upper bound on max_p B(p) - min_p B(p). '
-            'Default: 1000. Use a negative value to disable the hard bound.'
-        ),
+        default=None,
+        help=argparse.SUPPRESS,
     )
     return parser.parse_args()
 
 
 ARGS = parse_args()
-HARD_FAIRNESS_LIMIT = None if ARGS.fairness < 0 else ARGS.fairness
+if ARGS.fairness is not None:
+    print(
+        'Notice: --fairness is retained only for backward compatibility and '
+        'is ignored; hard fairness is disabled.'
+    )
+HARD_FAIRNESS_LIMIT = None
 
 # Folder chứa toàn bộ file .dzn
 INPUT_DIR = './data_table06_forb'
@@ -439,32 +444,93 @@ for input_file in input_files:
         cnf.extend(ALO(commanders))
 
     def add_comparator(left, right, high, low):
-        """Exact Boolean comparator: high=left OR right, low=left AND right."""
+        """Exact comparator used by the cardinality/sorting networks."""
+        # high <-> (left OR right)
         cnf.append([-left, high])
         cnf.append([-right, high])
         cnf.append([left, right, -high])
+        # low <-> (left AND right)
         cnf.append([left, -low])
         cnf.append([right, -low])
         cnf.append([-left, -right, low])
 
+    network_false_var = 0
+
+    def _network_false_literal():
+        """Return a shared Boolean constant fixed to false for network padding."""
+        global variable_size, network_false_var
+        if network_false_var == 0:
+            network_false_var = variable_size + 1
+            variable_size += 1
+            cnf.append([-network_false_var])
+        return network_false_var
+
     def sort_descending(lits):
-        """Return exact unary sorting outputs in descending Boolean order."""
+        """Sort Boolean literals with a Batcher odd-even cardinality network.
+
+        Output k-1 is true exactly when at least k input literals are true.  This
+        is the unary/sorted representation used by the paper for sort(.,.) and
+        for the cardinality-network implementation of Constraints (44)-(45).
+        """
         global variable_size
-        outputs = []
-        for lit in lits:
-            carry = lit
-            next_outputs = []
-            for existing in outputs:
-                high = variable_size + 1
-                variable_size += 1
-                low = variable_size + 1
-                variable_size += 1
-                add_comparator(carry, existing, high, low)
-                next_outputs.append(high)
-                carry = low
-            next_outputs.append(carry)
-            outputs = next_outputs
-        return outputs
+
+        if not lits:
+            return []
+        if len(lits) == 1:
+            return list(lits)
+
+        # Batcher's odd-even merge network is defined for powers of two. False
+        # padding preserves all threshold values of the original input list.
+        size = 1
+        while size < len(lits):
+            size *= 2
+        wires = list(lits)
+        if len(wires) < size:
+            wires.extend([_network_false_literal()] * (size - len(wires)))
+
+        def compare(i, j):
+            global variable_size
+            high = variable_size + 1
+            low = variable_size + 2
+            variable_size = low
+            add_comparator(wires[i], wires[j], high, low)
+            wires[i], wires[j] = high, low
+
+        def odd_even_merge(lo, length, stride):
+            step = stride * 2
+            if step < length:
+                odd_even_merge(lo, length, step)
+                odd_even_merge(lo + stride, length, step)
+                for index in range(lo + stride, lo + length - stride, step):
+                    compare(index, index + stride)
+            else:
+                compare(lo, lo + stride)
+
+        def odd_even_merge_sort(lo, length):
+            if length > 1:
+                half = length // 2
+                odd_even_merge_sort(lo, half)
+                odd_even_merge_sort(lo + half, half)
+                odd_even_merge(lo, length, 1)
+
+        odd_even_merge_sort(0, size)
+        return wires[:len(lits)]
+
+    def build_meeting_clusters():
+        """Greedy partition Π used by the paper's Constraints (46)-(47)."""
+        unassigned = set(range(1, nMeetings + 1))
+        clusters = []
+        while unassigned:
+            best = []
+            for p in range(1, nBusiness + 1):
+                candidate = sorted(unassigned.intersection(meetingsxBusiness[p]))
+                if len(candidate) > len(best):
+                    best = candidate
+            if not best:
+                best = [min(unassigned)]
+            clusters.append(best)
+            unassigned.difference_update(best)
+        return clusters
 
 
     start_time = time.time()
@@ -546,12 +612,36 @@ for input_file in input_files:
             # clauses = CardEnc.equals(lits=lits, bound=1, encoding=EncType.seqcounter, top_id=variable_size)
             commander_EO(lits)
 
-    # At most nTables meetings can happen at the same time (21)
+    # Further improvement from the paper, Constraints (46)-(47): replace
+    # meeting-level capacity (21) by a sequential-counter capacity constraint
+    # over greedily constructed clusters of mutually exclusive meetings.
+    meeting_clusters = build_meeting_clusters()
+    cluster_active = [
+        [0 for _ in range(nTotalSlots + 1)]
+        for _ in range(len(meeting_clusters))
+    ]
+
+    for c in range(len(meeting_clusters)):
+        for t in range(1, nTotalSlots + 1):
+            cluster_active[c][t] = variable_size + 1
+            variable_size += 1
+
     for t in range(1, nTotalSlots + 1):
-        lits = [x[m][t] for m in range(1, nMeetings + 1)]
-        if len(lits) > nTables:
+        active_lits = []
+        for c, meetings in enumerate(meeting_clusters):
+            active = cluster_active[c][t]
+            active_lits.append(active)
+            # Constraint (46): schedule[m,t] -> clusterActive[c,t].
+            for m in meetings:
+                cnf.append([-x[m][t], active])
+
+        # Constraint (47), encoded by a sequential counter as specified in §4.6.
+        if len(active_lits) > nTables:
             atmost_tables = CardEnc.atmost(
-                lits=lits, bound=nTables, encoding=EncType.seqcounter, top_id=variable_size
+                lits=active_lits,
+                bound=nTables,
+                encoding=EncType.seqcounter,
+                top_id=variable_size,
             )
             variable_size = max(variable_size, atmost_tables.nv)
             cnf.extend(atmost_tables.clauses)
@@ -569,26 +659,20 @@ for input_file in input_files:
             t = fixed[m]
             cnf.append([x[m][t]])
     
-    # Handle forbidden time slots (27)
+    # Forbidden time slots (27), directly over schedule variables as in
+    # the paper: every meeting of p is forbidden at each slot in forb(p).
     for p in range(1, nBusiness + 1):
         for t in forbidden[p]:
-            cnf.append([-y[p][t]])
-    
-    # Handle precedence constraints (28)
+            for m in meetingsxBusiness[p]:
+                cnf.append([-x[m][t]])
+
+    # Traditional pairwise precedence encoding (28) from the paper:
+    # schedule[prec,j0] -> not schedule[m,j] for every j0 >= j.
     for m in range(1, nMeetings + 1):
         for prec in precedences[m]:
-            # Add staircase constraints (meeting prec must be scheduled before meeting m)
-            sfx = [0 for _ in range(nTotalSlots + 1)]
-            sfx[nTotalSlots] = x[prec][nTotalSlots]
-            for t in range(nTotalSlots - 1, 0, -1):
-                sfx[t] = variable_size + 1
-                variable_size += 1
-                cnf.append([-x[prec][t], sfx[t]])  # x[prec][t] => sfx[t]
-                cnf.append([-sfx[t + 1], sfx[t]])  # sfx[t + 1] => sfx[t]
-                cnf.append([x[prec][t], sfx[t + 1], -sfx[t]])  # not x[prec][t] and not sfx[t + 1] => not sfx[t]
-            # Strict precedence: prec must be at slot < t (not at t or later)
             for t in range(1, nTotalSlots + 1):
-                cnf.append([-x[m][t], -sfx[t]])
+                for prec_t in range(t, nTotalSlots + 1):
+                    cnf.append([-x[prec][prec_t], -x[m][t]])
             
     # If a meeting is scheduled at time slot t then y[p1][t] and y[p2][t] must be true (29)
     # => x[m][t] -> y[p1][t] and y[p2][t]
@@ -715,28 +799,9 @@ for input_file in input_files:
         cnf.append([-maxGap[j + 1], maxGap[j]])
         cnf.append([-minGap[j + 1], minGap[j]])
 
-    # Optional hard fairness constraint, matching B2B_Instance:
-    #     sum_j difGap[j] <= HARD_FAIRNESS_LIMIT
-    # Since sum_j difGap[j] is exactly max_p B(p) - min_p B(p), this is
-    # equivalent to bounding the fairness gap directly.
-    fairness_lits = [difGap[j] for j in range(1, max_gap_slots + 1)]
+    # No hard fairness constraint is generated.  The difGap literals are
+    # objective literals only; all feasible schedules remain admissible.
     fairness_constraint_clauses = 0
-    if HARD_FAIRNESS_LIMIT is not None:
-        before_fairness = len(cnf.clauses)
-        if HARD_FAIRNESS_LIMIT == 0:
-            cnf.extend([[-lit] for lit in fairness_lits])
-        elif HARD_FAIRNESS_LIMIT < len(fairness_lits):
-            fairness_encoding = CardEnc.atmost(
-                lits=fairness_lits,
-                bound=HARD_FAIRNESS_LIMIT,
-                encoding=EncType.seqcounter,
-                top_id=variable_size,
-            )
-            cnf.extend(fairness_encoding.clauses)
-            variable_size = max(variable_size, fairness_encoding.nv)
-        # If the bound is at least the number of objective literals, the
-        # constraint is tautological and B2B_Instance also adds no clauses.
-        fairness_constraint_clauses = len(cnf.clauses) - before_fairness
 
     # Imp1: The number of meetings of a participant p must equal nMeetingsBusiness[p] (43)
     for p in range(1, nBusiness + 1):
@@ -745,25 +810,22 @@ for input_file in input_files:
         cnf.extend(clauses)
         variable_size = max(variable_size, clauses.nv)
     
-    # Imp2: The number of participants having a meeting in a given time slot is bounded by twice the number of available locations (44)
-    # for t in range(1, nTotalSlots + 1):
-    #     lits = [y[p][t] for p in range(1, nBusiness + 1)]
-    #     clauses = CardEnc.atmost(lits=lits, bound=2*nTables, encoding=EncType.cardnetwrk, top_id=variable_size)
-    #     cnf.extend(clauses)
-    #     variable_size = max(variable_size, clauses.nv)
-
-    # Apply Itotalizer to (44)
+    # Imp2 (44) and the even-participant strengthening (45).  The paper
+    # encodes (44) with a cardinality network and applies (45) directly to its
+    # sorted unary outputs.  output[k-1] means that at least k participants are
+    # active in this slot.
     for t in range(1, nTotalSlots + 1):
         lits = [y[p][t] for p in range(1, nBusiness + 1)]
-        if len(lits) > 2*nTables:
-            itotalizer = ITotalizer(lits=lits, ubound=2*nTables + 1, top_id=variable_size)
-            cnf.extend(itotalizer.cnf)
-            variable_size = max(variable_size, itotalizer.cnf.nv)
-            # Enforce at-most 2*nTables: forbid the (2*nTables+1)-th output being true
-            cnf.append([-itotalizer.rhs[2*nTables]])
-            for i in range(0, 2*nTables, 2):
-                if i + 1 < 2 * nTables:
-                    cnf.append([-itotalizer.rhs[i], itotalizer.rhs[i + 1]])
+        if len(lits) > 2 * nTables:
+            outputs = sort_descending(lits)
+
+            # atMost(2*nTables): forbid count >= 2*nTables + 1.
+            cnf.append([-outputs[2 * nTables]])
+
+            # Constraint (45): o_i -> o_(i+1) for odd one-based i.
+            # Together with sorted-output monotonicity this forces an even count.
+            for i in range(0, 2 * nTables, 2):
+                cnf.append([-outputs[i], outputs[i + 1]])
 
     
     # Add hard clauses 
@@ -783,8 +845,7 @@ for input_file in input_files:
     print(f"Total hard clauses: {len(cnf.clauses)}")
     print(f"Total soft clauses: {max_gap_slots}")
     print(
-        'Hard fairness limit: '
-        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'} "
+        'Hard fairness limit: disabled '
         f"(added clauses: {fairness_constraint_clauses})"
     )
 
@@ -1011,12 +1072,6 @@ for input_file in input_files:
         assert encoded_objective == fairness_gap, (
             f"Encoded objective={encoded_objective}, fairness_gap={fairness_gap}"
         )
-        if HARD_FAIRNESS_LIMIT is not None:
-            assert fairness_gap <= HARD_FAIRNESS_LIMIT, (
-                f"Fairness gap {fairness_gap} exceeds hard limit "
-                f"{HARD_FAIRNESS_LIMIT}"
-            )
-
         # Participant load bound per slot
         for t in range(1, nTotalSlots + 1):
             participants_at_t = sum(is_true(y[p][t]) for p in range(1, nBusiness + 1))
@@ -1085,8 +1140,7 @@ for input_file in input_files:
     print(
         f"Result queued for CSV: {solve_status} | "
         f"objective={fairness_gap if fairness_gap is not None else 'N/A'} | "
-        f"hard_fairness_limit="
-        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'}"
+        "hard_fairness_limit=disabled"
     )
 
 
