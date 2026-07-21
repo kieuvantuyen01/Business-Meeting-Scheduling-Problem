@@ -1,73 +1,84 @@
-# B2B SAT Project (refactored)
+# B2B SAT/MaxSAT conference model
 
-This refactored folder follows the structure requested for the B2B SAT project:
+This repository implements the conference formulation of the
+Business-to-Business Meeting Scheduling Problem. The single optimization
+objective is
 
-- `Main.py`
-  - only orchestrates solver calls
-  - applies a wall-clock timeout per run
-  - writes one CSV summary file
-- `B2B_Instance.py`
-  - reads `.dzn` instances
-  - creates SAT variables
-  - contains all shared constraints used by both SAT solvers
-  - supports two precedence encodings:
-    - `traditional`
-    - `staircase`
-- `IncrementalSAT_Solver.py`
-  - imports the shared model from `B2B_Instance.py`
-  - solves by tightening the total-break bound incrementally
-- `Multiple_SAT.py`
-  - imports the shared model from `B2B_Instance.py`
-  - rebuilds the SAT solver for each objective bound
-- `requirements.txt`
-  - Python dependency for PySAT
-- `data/`
-  - sample `.dzn` instances copied into the project
+\[
+\operatorname{IdleRange}(P^\star)
+= \max_{p\in P^\star} B(p)-\min_{p\in P^\star} B(p),
+\qquad
+P^\star=\{p:|M_p|\ge 2\},
+\]
+
+where `B(p)` is the number of idle slots strictly between participant `p`'s
+first and last meetings. Participants with zero or one meeting are excluded
+because their internal idle time is structurally zero.
+
+The conference model deliberately has no hard objective cap and no
+Lexicographic `IdleSum` objective.
+
+## Main components
+
+- `src/B2B_Instance.py`: parser, exact domain reduction, compact break encoding,
+  hard constraints, objective literals, decoding, and independent validation.
+- `src/MaxSAT_Solver.py`: unit-weight partial MaxSAT optimization with RC2.
+- `src/Multiple_SAT.py`: fresh-SAT binary-search optimization.
+- `src/IncrementalSAT_Solver.py`: incremental-SAT optimization with a totalizer.
+- `src/Main.py`: timeout-controlled benchmark runner and CSV exporter.
+- `src/ORG_new.py`: paper-style ORG MaxSAT baseline using the same
+  `IdleRange(P*)` participant set.
+
+## Full versus Reduced Domain
+
+`Full Domain` is the set of meeting-slot candidates after the explicit input
+restrictions (session, fixed, and forbidden slots). `Reduced Domain` is the
+fixed point obtained after exact precedence-distance, participant-matching, and
+slot-capacity propagation. The solver always uses Reduced Domain because the
+reduction preserves the feasible schedule set.
+
+Detailed CSV output records `initial_schedule_candidates` (Full Domain) and
+`reduced_schedule_candidates` (Reduced Domain), so preprocessing effectiveness
+can be reported without treating Full Domain as a separate problem variant.
 
 ## Run examples
 
-Run all solvers and both precedence variants on one instance:
+Run all three optimizers, both precedence encodings, and all compact encoding
+variants on one instance:
 
 ```bash
-python Main.py \
-  --instance data/forum-13.original.dzn \
+python3 src/Main.py \
+  --instance data_table03_origin/tic-12.original.dzn \
   --solver all \
   --precedence-mode both \
-  --fairness 2 \
+  --encoding-variant all \
   --timeout 120 \
-  --csv summary.csv
+  --csv output/table3_results.csv
 ```
-python src/Main.py --instance data_table08_prec/tic-12.prec15.dzn --precedence-mode both --encoding-variant all
 
-Run only Incremental SAT with staircase precedence:
+Run only MaxSAT with the most compact encoding:
 
 ```bash
-python Main.py \
-  --instance data/forum-13.prec15.dzn \
-  --solver incremental \
+python3 src/Main.py \
+  --data-dir data_table08_prec \
+  --solver maxsat \
   --precedence-mode staircase \
-  --fairness 2 \
-  --timeout 120 \
-  --csv staircase_only.csv
+  --encoding-variant imp12+ \
+  --timeout 7200 \
+  --csv output/table8_results.csv
 ```
 
-Run only Multiple SAT with traditional precedence on all data files:
+Build and inspect one CNF/WCNF directly:
 
 ```bash
-python Main.py \
-  --data-dir data \
-  --solver multiple \
-  --precedence-mode traditional \
-  --fairness 2 \
-  --timeout 120 \
-  --csv multiple_traditional.csv
+python3 src/B2B_Instance.py \
+  data_table03_origin/tic-12.original.dzn \
+  --precedence-mode staircase \
+  --encoding-variant imp12+
 ```
 
+## Test
 
-## Notes on the encoding
-
-- `x(m,t)`: meeting `m` is scheduled at slot `t`
-- `used(p,t)`: participant `p` has a meeting at slot `t`
-- `held(p,t)`: participant `p` has already had a meeting by slot `t`
-- `hole(p,t)`: a break for participant `p` finishes at slot `t`
-
+```bash
+python3 -m pytest -q
+```

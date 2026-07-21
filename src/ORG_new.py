@@ -22,28 +22,14 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             'Solve B2B instances with the paper-style ORG MaxSAT encoding. '
-            "The objective minimizes the gap between participants' total "
-            'internal idle-slot counts; no hard fairness constraint is added.'
+            'The objective minimizes IdleRange(P*) over participants with at '
+            'least two meetings; no hard objective cap is added.'
         )
-    )
-    # Kept only so old command lines still parse. The hard fairness constraint
-    # has been removed completely and this value is intentionally ignored.
-    parser.add_argument(
-        '--fairness',
-        type=int,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     return parser.parse_args()
 
 
 ARGS = parse_args()
-if ARGS.fairness is not None:
-    print(
-        'Notice: --fairness is retained only for backward compatibility and '
-        'is ignored; hard fairness is disabled.'
-    )
-HARD_FAIRNESS_LIMIT = None
 
 # Folder chứa toàn bộ file .dzn
 INPUT_DIR = './data_table06_forb'
@@ -74,8 +60,8 @@ CSV_FIELDS = [
     'n_total_clauses',
     'solver',
     'solver_cost',
-    'fairness_gap',
-    'hard_fairness_limit',
+    'idle_range_pstar',
+    'objective_participants',
     'participant_gap_slots',
     'assignment_by_meeting',
     'schedule_by_slot',
@@ -535,6 +521,15 @@ for input_file in input_files:
 
     start_time = time.time()
     nBusiness, nMeetings, nTables, nTotalSlots, nMorningSlots, requested, meetingsxBusiness, nMeetingsBusiness, forbidden, fixed, precedences = read_input()
+    objective_participants = [
+        p for p in range(1, nBusiness + 1)
+        if nMeetingsBusiness[p] >= 2
+    ]
+    # The range of an empty or singleton P* is zero, so no break-objective
+    # variables are required in those degenerate cases.
+    objective_encoding_participants = (
+        objective_participants if len(objective_participants) >= 2 else []
+    )
     input_time = time.time()
     print(f"Input parsing completed in {input_time - start_time:.4f} seconds")
 
@@ -547,7 +542,7 @@ for input_file in input_files:
     # print("Precedences:", precedences)
 
     # HARD CONSTRAINTS: keep the original meeting-centered encoding.
-    # Only the break/fairness semantics and objective are replaced below.
+    # Only the break-range semantics and P* objective are replaced below.
 
     # x[m][t] = 1 iff meeting m is scheduled at time slot t.
     x = [[0 for _ in range(nTotalSlots + 1)] for _ in range(nMeetings + 1)]
@@ -575,7 +570,7 @@ for input_file in input_files:
             y[p][t] = variable_size + 1
             variable_size += 1
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for t in range(1, nTotalSlots + 1):
             prefix[p][t] = variable_size + 1
             variable_size += 1
@@ -696,7 +691,7 @@ for input_file in input_files:
     # ------------------------------------------------------------------
 
     # prefix[p][t] <-> OR(y[p][1], ..., y[p][t]).
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         if nTotalSlots >= 1:
             cnf.append([y[p][1], -prefix[p][1]])
             cnf.append([-y[p][1], prefix[p][1]])
@@ -706,7 +701,7 @@ for input_file in input_files:
             cnf.append([y[p][t], prefix[p][t - 1], -prefix[p][t]])
 
     # suffix[p][t] <-> OR(y[p][t], ..., y[p][T]).
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         if nTotalSlots >= 1:
             cnf.append([y[p][nTotalSlots], -suffix[p][nTotalSlots]])
             cnf.append([-y[p][nTotalSlots], suffix[p][nTotalSlots]])
@@ -717,7 +712,7 @@ for input_file in input_files:
 
     # gap_slot[p][t] <-> prefix[p][t-1] AND not y[p][t]
     #                                  AND suffix[p][t+1].
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for t in range(2, nTotalSlots):
             g = gap_slot[p][t]
             cnf.append([-g, prefix[p][t - 1]])
@@ -733,15 +728,18 @@ for input_file in input_files:
         if nMeetingsBusiness[p] >= 2:
             participant_gap_upper[p] = max(0, nTotalSlots - nMeetingsBusiness[p])
 
-    max_gap_slots = max(participant_gap_upper, default=0)
+    max_gap_slots = max(
+        (participant_gap_upper[p] for p in objective_encoding_participants),
+        default=0,
+    )
     sortedGap = [[0 for _ in range(max_gap_slots + 1)] for _ in range(nBusiness + 1)]
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for j in range(1, max_gap_slots + 1):
             sortedGap[p][j] = variable_size + 1
             variable_size += 1
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         gap_lits = [gap_slot[p][t] for t in range(2, nTotalSlots)]
         upper = min(participant_gap_upper[p], len(gap_lits))
 
@@ -758,10 +756,10 @@ for input_file in input_files:
             cnf.append([-sortedGap[p][j]])
 
     # Exact unary maximum, minimum, and their difference. For each j:
-    # maxGap[j] = OR_p sortedGap[p][j]
-    # minGap[j] = AND_p sortedGap[p][j]
+    # maxGap[j] = OR_{p in P*} sortedGap[p][j]
+    # minGap[j] = AND_{p in P*} sortedGap[p][j]
     # difGap[j] = maxGap[j] AND not minGap[j]
-    # Therefore sum_j difGap[j] = max_p G_p - min_p G_p.
+    # Therefore sum_j difGap[j] = max_{p in P*} G_p - min_{p in P*} G_p.
     maxGap = [0 for _ in range(max_gap_slots + 1)]
     minGap = [0 for _ in range(max_gap_slots + 1)]
     difGap = [0 for _ in range(max_gap_slots + 1)]
@@ -774,7 +772,9 @@ for input_file in input_files:
         difGap[j] = variable_size + 1
         variable_size += 1
 
-        threshold_lits = [sortedGap[p][j] for p in range(1, nBusiness + 1)]
+        threshold_lits = [
+            sortedGap[p][j] for p in objective_encoding_participants
+        ]
         if threshold_lits:
             # maxGap[j] <-> OR(threshold_lits)
             for lit in threshold_lits:
@@ -799,9 +799,8 @@ for input_file in input_files:
         cnf.append([-maxGap[j + 1], maxGap[j]])
         cnf.append([-minGap[j + 1], minGap[j]])
 
-    # No hard fairness constraint is generated.  The difGap literals are
-    # objective literals only; all feasible schedules remain admissible.
-    fairness_constraint_clauses = 0
+    # No hard objective cap is generated. The difGap literals are objective
+    # literals only; all feasible schedules remain admissible.
 
     # Imp1: The number of meetings of a participant p must equal nMeetingsBusiness[p] (43)
     for p in range(1, nBusiness + 1):
@@ -833,9 +832,9 @@ for input_file in input_files:
         wcnf.append(clause)  # Default weight is top (hard)
 
     # SOFT CONSTRAINTS:
-    # Minimize the fairness gap, not the sum of participant breaks.
+    # Minimize IdleRange(P*), not the sum of participant breaks.
     # One violated soft clause corresponds to one unit of
-    # max(total_gap_slots) - min(total_gap_slots).
+    # max_{p in P*}(total_gap_slots) - min_{p in P*}(total_gap_slots).
     for j in range(1, max_gap_slots + 1):
         wcnf.append([-difGap[j]], weight=1)
 
@@ -845,8 +844,7 @@ for input_file in input_files:
     print(f"Total hard clauses: {len(cnf.clauses)}")
     print(f"Total soft clauses: {max_gap_slots}")
     print(
-        'Hard fairness limit: disabled '
-        f"(added clauses: {fairness_constraint_clauses})"
+        'Hard objective cap: disabled (added clauses: 0)'
     )
 
     def solve_maxsat():
@@ -855,7 +853,7 @@ for input_file in input_files:
             'uwrmaxsat', 'build', 'release', 'bin', 'uwrmaxsat'
         )
         UWRMAXSAT_BIN = os.environ.get('UWRMAXSAT_BIN', local_bin)
-        WCNF_FILE = 'maxHS_gap_fairness.wcnf'
+        WCNF_FILE = 'maxHS_idle_range_pstar.wcnf'
         TIMEOUT = 3600  # 1 hour
 
         if os.path.isfile(UWRMAXSAT_BIN) and os.access(UWRMAXSAT_BIN, os.X_OK):
@@ -879,7 +877,7 @@ for input_file in input_files:
                         model.extend(int(lit) for lit in line[2:].split())
 
                 if status == 'OPTIMUM FOUND' and model:
-                    print(f"UWrMaxSAT optimum fairness gap: {solution_cost}")
+                    print(f"UWrMaxSAT optimum IdleRange(P*): {solution_cost}")
                     return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL'
 
                 print(f"UWrMaxSAT status: {status}")
@@ -904,7 +902,7 @@ for input_file in input_files:
             return model, solver.cost, 'RC2', 'OPTIMAL'
 
     # Write the WCNF to a file
-    wcnf.to_file('maxHS_gap_fairness.wcnf')
+    wcnf.to_file('maxHS_idle_range_pstar.wcnf')
 
     # Solve
     solve_start = time.time()
@@ -912,7 +910,7 @@ for input_file in input_files:
 
     # Independently recompute the new objective from the decoded schedule.
     participant_gap_slots = []
-    fairness_gap = None
+    idle_range_pstar = None
     if assignment:
         positive_assignment = {lit for lit in assignment if lit > 0}
         for p in range(1, nBusiness + 1):
@@ -931,14 +929,18 @@ for input_file in input_files:
                     if t not in busy_set
                 ))
 
-        fairness_gap = (
-            max(participant_gap_slots, default=0)
-            - min(participant_gap_slots, default=0)
+        objective_values = [
+            participant_gap_slots[p - 1] for p in objective_participants
+        ]
+        idle_range_pstar = (
+            max(objective_values) - min(objective_values)
+            if len(objective_values) >= 2
+            else 0
         )
         if solver_cost is not None:
-            assert solver_cost == fairness_gap, (
+            assert solver_cost == idle_range_pstar, (
                 f"Objective mismatch: solver_cost={solver_cost}, "
-                f"recomputed_fairness_gap={fairness_gap}"
+                f"recomputed_IdleRange(P*)={idle_range_pstar}"
             )
     solve_time = time.time()
     print(f"MaxSAT solving completed in {solve_time - solve_start:.4f} seconds")
@@ -1023,8 +1025,8 @@ for input_file in input_files:
                     f"(y={is_true(y[p][t])}, has_x={has_x})"
                 )
 
-        # Exact prefix/suffix and internal gap-slot semantics.
-        for p in range(1, nBusiness + 1):
+        # Exact prefix/suffix and internal gap-slot semantics for P*.
+        for p in objective_encoding_participants:
             busy = [is_true(y[p][t]) for t in range(1, nTotalSlots + 1)]
             for t in range(1, nTotalSlots + 1):
                 expected_prefix = any(busy[:t])
@@ -1054,10 +1056,10 @@ for input_file in input_files:
                     f"sortedGap[{p}][{j}] inconsistent with gap total {expected_count}"
                 )
 
-        # Exact maximum/minimum unary values and fairness-difference objective.
+        # Exact maximum/minimum unary values and P*-range objective.
         for j in range(1, max_gap_slots + 1):
             threshold_values = [
-                is_true(sortedGap[p][j]) for p in range(1, nBusiness + 1)
+                is_true(sortedGap[p][j]) for p in objective_encoding_participants
             ]
             expected_max = any(threshold_values)
             expected_min = all(threshold_values) if threshold_values else True
@@ -1069,8 +1071,9 @@ for input_file in input_files:
         encoded_objective = sum(
             is_true(difGap[j]) for j in range(1, max_gap_slots + 1)
         )
-        assert encoded_objective == fairness_gap, (
-            f"Encoded objective={encoded_objective}, fairness_gap={fairness_gap}"
+        assert encoded_objective == idle_range_pstar, (
+            f"Encoded objective={encoded_objective}, "
+            f"IdleRange(P*)={idle_range_pstar}"
         )
         # Participant load bound per slot
         for t in range(1, nTotalSlots + 1):
@@ -1127,8 +1130,8 @@ for input_file in input_files:
         'n_total_clauses': len(cnf.clauses) + max_gap_slots,
         'solver': solver_used,
         'solver_cost': solver_cost,
-        'fairness_gap': fairness_gap,
-        'hard_fairness_limit': HARD_FAIRNESS_LIMIT,
+        'idle_range_pstar': idle_range_pstar,
+        'objective_participants': serialize_list(objective_participants),
         'participant_gap_slots': serialize_list(participant_gap_slots),
         'assignment_by_meeting': serialize_assignment(schedule_pairs),
         'schedule_by_slot': serialize_schedule(meetings_per_slot),
@@ -1139,8 +1142,8 @@ for input_file in input_files:
 
     print(
         f"Result queued for CSV: {solve_status} | "
-        f"objective={fairness_gap if fairness_gap is not None else 'N/A'} | "
-        "hard_fairness_limit=disabled"
+        f"IdleRange(P*)={idle_range_pstar if idle_range_pstar is not None else 'N/A'} | "
+        "hard_objective_cap=disabled"
     )
 
 

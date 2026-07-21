@@ -10,778 +10,432 @@ from typing import Any
 
 try:
     import psutil
-except ImportError:  # The benchmark still runs, but memory will be reported as N/A.
+except ImportError:  # Memory remains optional for benchmark portability.
     psutil = None
 
-import IncrementalSAT_Solver
-import MaxSAT_Solver
-import Multiple_SAT
+from IncrementalSAT_Solver import B2BIncrementalSATSolver
+from MaxSAT_Solver import B2BMaxSATSolver
+from Multiple_SAT import B2BMultipleSATSolver
 
 
-# =========================================================
-# CONFIG
-# =========================================================
-
-VARIANTS = [
-    "basic",
-    "imp1",
-    "imp2",
-    "imp12",
-    "imp12+",
-]
-
-SOLVERS = [
-    "incremental",
-    "multiple",
-    "maxsat",
-]
-
-PRECEDENCE_MODES = [
-    "traditional",
-    "staircase",
-]
-
-MEMORY_SAMPLE_INTERVAL_S = 0.05
-QUEUE_RESULT_GRACE_S = 1.0
+VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
+SOLVERS = ["incremental", "multiple", "maxsat"]
+PRECEDENCE_MODES = ["traditional", "staircase"]
+MEMORY_SAMPLE_INTERVAL_SECONDS = 0.05
+QUEUE_GRACE_SECONDS = 1.0
 
 
-# =========================================================
-# ARGUMENTS
-# =========================================================
-
-
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="B2B SAT Benchmark Runner"
+        description=(
+            "Benchmark the conference model: minimize IdleRange(P*) over "
+            "exact reduced meeting-slot domains."
+        )
     )
-
-    parser.add_argument(
-        "--instance",
-        default=None,
-        help="Single .dzn instance",
-    )
-
+    parser.add_argument("--instance", help="single .dzn instance")
     parser.add_argument(
         "--data-dir",
         default="data",
-        help="Directory containing .dzn instances",
+        help="directory containing .dzn instances when --instance is omitted",
     )
-
     parser.add_argument(
         "--solver",
-        choices=["incremental", "multiple", "maxsat", "all"],
+        choices=[*SOLVERS, "all"],
         default="all",
     )
-
     parser.add_argument(
         "--precedence-mode",
-        choices=["traditional", "staircase", "both"],
+        choices=[*PRECEDENCE_MODES, "both"],
         default="both",
     )
-
     parser.add_argument(
         "--encoding-variant",
-        choices=VARIANTS + ["all"],
+        choices=[*VARIANTS, "all"],
         default="all",
     )
-
-    parser.add_argument(
-        "--fairness",
-        type=int,
-        default=1000,
-        help="Fairness bound d. Use -1 to disable fairness.",
-    )
-
     parser.add_argument(
         "--timeout",
-        type=int,
-        default=7200,
-        help="Timeout per run in seconds",
+        type=float,
+        default=7200.0,
+        help="wall-clock timeout per run in seconds",
     )
-
     parser.add_argument(
         "--csv",
         default="table3_results.csv",
-        help="Aggregated Table-3 CSV path",
+        help="aggregated Table-3 CSV path",
     )
-
     parser.add_argument(
         "--long-csv",
-        default=None,
-        help=(
-            "Detailed per-run CSV path. By default, a file named "
-            "<csv-stem>_detailed.csv is created beside --csv."
-        ),
+        help="detailed CSV path; defaults to <csv-stem>_detailed.csv",
     )
-
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-    )
-
-    return parser.parse_args()
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args(argv)
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    return args
 
 
-# =========================================================
-# HELPERS
-# =========================================================
+def selected(choice: str, values: list[str], all_name: str = "all") -> list[str]:
+    return values if choice == all_name else [choice]
 
 
-def normalize_fairness(value: int) -> int | None:
-    return None if value < 0 else value
-
-
-def selected_solvers(choice: str) -> list[str]:
-    return SOLVERS if choice == "all" else [choice]
-
-
-def selected_precedence_modes(choice: str) -> list[str]:
-    return PRECEDENCE_MODES if choice == "both" else [choice]
-
-
-def selected_variants(choice: str) -> list[str]:
-    return VARIANTS if choice == "all" else [choice]
-
-
-def collect_instances(
-    instance: str | None,
-    data_dir: str,
-) -> list[Path]:
+def collect_instances(instance: str | None, data_dir: str) -> list[Path]:
     if instance:
         path = Path(instance)
         if not path.is_file():
             raise FileNotFoundError(path)
         return [path]
 
-    folder = Path(data_dir)
-    if not folder.is_dir():
-        raise FileNotFoundError(folder)
-
-    files = sorted(folder.glob("*.dzn"))
-    if not files:
-        raise FileNotFoundError(f"No .dzn files found in {folder}")
-
-    return files
+    directory = Path(data_dir)
+    if not directory.is_dir():
+        raise FileNotFoundError(directory)
+    instances = sorted(directory.glob("*.dzn"))
+    if not instances:
+        raise FileNotFoundError(f"No .dzn files found in {directory}")
+    return instances
 
 
 def status_to_sat_result(status: str | None) -> str:
-    """Convert solver-specific statuses to the requested SAT/UNSAT result."""
-
     normalized = (status or "ERROR").upper()
-
-    if normalized in {
-        "OPTIMAL",
-        "SAT",
-        "SATISFIABLE",
-        "OPTIMUM FOUND",
-    }:
+    if normalized in {"OPTIMAL", "SAT", "SATISFIABLE", "OPTIMUM FOUND"}:
         return "SAT"
-
-    if normalized in {
-        "UNSAT",
-        "UNSATISFIABLE",
-    }:
+    if normalized in {"UNSAT", "UNSATISFIABLE"}:
         return "UNSAT"
-
     if normalized == "TIMEOUT":
         return "TIMEOUT"
-
     return "ERROR"
 
 
-def _safe_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _finalize_formula_metrics(payload: dict[str, Any]) -> None:
-    """Normalize hard/soft/optimization clause counts and compute their total.
-
-    Current solver results expose ``n_clauses`` as the base hard-CNF count.
-    MaxSAT additionally exposes ``n_soft``. Future solver versions may expose
-    ``n_optimization_clauses`` or ``n_total_clauses``; those are honored here.
-    """
-
-    n_vars = payload.get("n_vars")
-    hard = payload.get("n_hard_clauses")
-    if hard is None:
-        hard = payload.get("n_clauses")
-
-    soft = payload.get("n_soft_clauses")
-    if soft is None:
-        soft = payload.get("n_soft", 0)
-
-    optimization = payload.get("n_optimization_clauses", 0)
-    explicit_total = payload.get("n_total_clauses")
-
-    payload["n_vars"] = n_vars
-    payload["n_hard_clauses"] = hard
-    payload["n_soft_clauses"] = soft
-    payload["n_optimization_clauses"] = optimization
-
-    if explicit_total is not None:
-        total = explicit_total
-    elif hard is None:
-        total = None
-    else:
-        total = (
-            _safe_int(hard)
-            + _safe_int(soft)
-            + _safe_int(optimization)
-        )
-
-    payload["n_total_clauses"] = total
-    # Keep a simple user-facing alias for CSV readers.
-    payload["total_clauses"] = total
-
-
-def _format_number(value: Any) -> str:
-    return "N/A" if value is None else str(value)
-
-
-def _format_memory(value: Any) -> str:
-    if value is None:
-        return "N/A"
-    return f"{float(value):.2f} MB"
-
-
-def _default_detailed_csv_path(csv_path: str) -> Path:
-    path = Path(csv_path)
-    suffix = path.suffix or ".csv"
-    return path.with_name(f"{path.stem}_detailed{suffix}")
-
-
-# =========================================================
-# SERIALIZERS
-# =========================================================
-
-
-def serialize_list(values: list[int] | None) -> str:
-    if values is None:
-        return ""
-    return ",".join(str(v) for v in values)
+def serialize_list(values: list[int] | tuple[int, ...] | None) -> str:
+    return "" if values is None else ",".join(str(value) for value in values)
 
 
 def serialize_assignment(values: list[int] | None) -> str:
     if values is None:
         return ""
-    return ",".join(str(v + 1) if v >= 0 else "-" for v in values)
+    return ",".join(str(value + 1) if value >= 0 else "-" for value in values)
 
 
-def serialize_schedule(
-    meetings_per_slot: list[list[int]] | None,
-) -> str:
+def serialize_schedule(meetings_per_slot: list[list[int]] | None) -> str:
     if meetings_per_slot is None:
         return ""
-
-    parts = []
-    for slot, meetings in enumerate(meetings_per_slot, start=1):
-        text = " ".join(f"M{m + 1}" for m in meetings)
-        parts.append(f"{slot}:{text}")
-
-    return " | ".join(parts)
+    return " | ".join(
+        f"{slot}:" + " ".join(f"M{meeting + 1}" for meeting in meetings)
+        for slot, meetings in enumerate(meetings_per_slot, start=1)
+    )
 
 
-# =========================================================
-# SOLVER CREATION AND WORKER
-# =========================================================
-
-
-def _solver_module_and_classes(solver_name: str) -> tuple[Any, tuple[str, ...]]:
+def _solver_class(solver_name: str):
     if solver_name == "incremental":
-        return IncrementalSAT_Solver, (
-            "B2BIncrementalSATSolver",
-            "IncrementalSATSolver",
-        )
-
+        return B2BIncrementalSATSolver
     if solver_name == "multiple":
-        return Multiple_SAT, (
-            "B2BMultipleSATSolver",
-            "MultipleSATSolver",
-        )
-
+        return B2BMultipleSATSolver
     if solver_name == "maxsat":
-        return MaxSAT_Solver, (
-            "B2BMaxSATSolver",
-            "MaxSATSolver",
-        )
-
+        return B2BMaxSATSolver
     raise ValueError(f"Unknown solver: {solver_name}")
 
 
-def _create_solver_object(
-    solver_name: str,
-    instance_path: str,
-    fairness_limit: int | None,
-    precedence_mode: str,
-    encoding_variant: str,
-) -> tuple[Any, Any | None]:
-    module, class_names = _solver_module_and_classes(solver_name)
-
-    for class_name in class_names:
-        solver_class = getattr(module, class_name, None)
-        if solver_class is None:
-            continue
-
-        solver_object = solver_class(
-            instance_or_path=instance_path,
-            fairness_limit=fairness_limit,
-            precedence_mode=precedence_mode,
-            encoding_variant=encoding_variant,
-        )
-        return module, solver_object
-
-    return module, None
-
-
-def _artifact_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
-    artifacts = getattr(solver_object, "artifacts", None)
-    if artifacts is None:
-        return {}
-
-    hard_clauses = getattr(artifacts, "n_clauses", None)
-    objective_lits = getattr(artifacts, "objective_lits", []) or []
-
-    # Objective literals become actual unit soft clauses only in the MaxSAT WCNF.
-    soft_clauses = len(objective_lits) if solver_name == "maxsat" else 0
-
-    metadata = {
-        "n_vars": getattr(artifacts, "n_vars", None),
-        "n_hard_clauses": hard_clauses,
-        "n_soft_clauses": soft_clauses,
-        "n_optimization_clauses": 0,
+def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
+    artifacts = solver_object.artifacts
+    n_soft = len(artifacts.objective_lits) if solver_name == "maxsat" else 0
+    initial = artifacts.initial_schedule_candidates
+    reduced = artifacts.reduced_schedule_candidates
+    return {
+        "message_type": "metadata",
+        "objective": artifacts.objective_name,
+        "objective_participant_count": len(artifacts.objective_participants),
+        "objective_participants": serialize_list(
+            tuple(participant + 1 for participant in artifacts.objective_participants)
+        ),
+        "domain_mode": "reduced",
+        "initial_schedule_candidates": initial,
+        "reduced_schedule_candidates": reduced,
+        "removed_schedule_candidates": initial - reduced,
+        "n_vars": artifacts.n_vars,
+        "n_hard_clauses": artifacts.n_clauses,
+        "n_soft_clauses": n_soft,
+        "n_total_clauses": artifacts.n_clauses + n_soft,
+        "n_objective_lits": len(artifacts.objective_lits),
+        "precedence_direct_edges": artifacts.precedence_direct_edges,
+        "precedence_closure_edges": artifacts.precedence_transitive_edges,
+        "precedence_max_distance": artifacts.precedence_max_distance,
+        "enabled_constraints": " | ".join(artifacts.enabled_constraints),
     }
-    _finalize_formula_metrics(metadata)
-    return metadata
 
 
-def _build_worker_payload(
+def _result_payload(
     result: dict[str, Any],
+    *,
     solver_name: str,
     precedence_mode: str,
     encoding_variant: str,
-    runtime_s: float,
+    runtime_seconds: float,
 ) -> dict[str, Any]:
     stats = result.get("stats")
-
-    payload: dict[str, Any] = {
+    payload = {
         "message_type": "result",
         "status": result.get("status", "ERROR"),
         "solver": solver_name,
         "precedence_mode": precedence_mode,
         "encoding_variant": encoding_variant,
-        "runtime_s": round(runtime_s, 6),
-        "total_breaks": None if stats is None else stats.total_breaks,
-        "fairness_gap": None if stats is None else stats.fairness_gap,
-        "participant_breaks": (
-            "" if stats is None else serialize_list(stats.participant_breaks)
+        "runtime_seconds": round(runtime_seconds, 6),
+        "objective": result.get("objective", "internal_idle_slot_range_pstar"),
+        "objective_value": result.get("objective_value"),
+        "proven_optimum": result.get("proven_optimum"),
+        "objective_participant_count": result.get(
+            "objective_participant_count"
         ),
-        "busy_participants_per_slot": (
+        "objective_participants": serialize_list(
+            result.get("objective_participants")
+        ),
+        "idle_range_pstar": None if stats is None else stats.idle_range,
+        "all_participant_idle_range": (
+            None if stats is None else stats.all_participant_idle_range
+        ),
+        "total_internal_idle_slots": (
+            None if stats is None else stats.total_internal_idle_slots
+        ),
+        "participant_internal_idle_slots": (
             ""
             if stats is None
-            else serialize_list(stats.busy_participants_per_slot)
+            else serialize_list(stats.participant_internal_idle_slots)
+        ),
+        "busy_participants_per_slot": (
+            "" if stats is None else serialize_list(stats.busy_participants_per_slot)
         ),
         "assignment": serialize_assignment(result.get("assignment")),
         "schedule_by_slot": (
             "" if stats is None else serialize_schedule(stats.meetings_per_slot)
         ),
-        "validation_errors": "; ".join(
-            result.get("validation_errors", [])
-        ),
-        "n_vars": result.get("n_vars"),
-        "n_clauses": result.get("n_clauses"),
-        "n_hard_clauses": result.get("n_hard_clauses"),
-        "n_soft": result.get("n_soft"),
-        "n_soft_clauses": result.get("n_soft_clauses"),
-        "n_optimization_clauses": result.get(
-            "n_optimization_clauses",
-            0,
-        ),
-        "n_total_clauses": result.get("n_total_clauses"),
-        "enabled_constraints": " | ".join(
-            result.get("enabled_constraints", [])
-        ),
+        "validation_errors": "; ".join(result.get("validation_errors", [])),
         "error_type": "",
         "error_message": "",
     }
-
     payload["sat_result"] = status_to_sat_result(payload["status"])
-    _finalize_formula_metrics(payload)
     return payload
 
 
 def _worker(
     solver_name: str,
     instance_path: str,
-    fairness_limit: int | None,
     precedence_mode: str,
     encoding_variant: str,
     verbose: bool,
-    queue: mp.Queue,
+    output: mp.Queue[Any],
 ) -> None:
     started = time.perf_counter()
-
     try:
-        module, solver_object = _create_solver_object(
-            solver_name=solver_name,
-            instance_path=instance_path,
-            fairness_limit=fairness_limit,
+        solver_object = _solver_class(solver_name)(
+            instance_or_path=instance_path,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
         )
-
-        if solver_object is not None:
-            metadata = _artifact_metadata(solver_name, solver_object)
-            if metadata:
-                queue.put({
-                    "message_type": "metadata",
-                    **metadata,
-                })
-            result = solver_object.solve(verbose=verbose)
-        else:
-            # Compatibility fallback for modules that only expose solve_b2b().
-            result = module.solve_b2b(
-                instance_or_path=instance_path,
-                fairness_limit=fairness_limit,
-                precedence_mode=precedence_mode,
-                encoding_variant=encoding_variant,
-                verbose=verbose,
-            )
-
-        queue.put(
-            _build_worker_payload(
-                result=result,
+        output.put(_formula_metadata(solver_name, solver_object))
+        result = solver_object.solve(verbose=verbose)
+        output.put(
+            _result_payload(
+                result,
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
                 encoding_variant=encoding_variant,
-                runtime_s=time.perf_counter() - started,
+                runtime_seconds=time.perf_counter() - started,
             )
         )
-
-    except Exception as exc:
-        payload: dict[str, Any] = {
-            "message_type": "result",
-            "status": "ERROR",
-            "sat_result": "ERROR",
-            "solver": solver_name,
-            "precedence_mode": precedence_mode,
-            "encoding_variant": encoding_variant,
-            "runtime_s": round(time.perf_counter() - started, 6),
-            "total_breaks": None,
-            "fairness_gap": None,
-            "participant_breaks": "",
-            "busy_participants_per_slot": "",
-            "assignment": "",
-            "schedule_by_slot": "",
-            "validation_errors": "",
-            "n_vars": None,
-            "n_clauses": None,
-            "n_hard_clauses": None,
-            "n_soft_clauses": None,
-            "n_optimization_clauses": 0,
-            "n_total_clauses": None,
-            "total_clauses": None,
-            "enabled_constraints": "",
-            "error_type": type(exc).__name__,
-            "error_message": str(exc),
-        }
-        queue.put(payload)
-
-
-# =========================================================
-# MEMORY AND TIMEOUT WRAPPER
-# =========================================================
+    except BaseException as exc:
+        output.put(
+            {
+                "message_type": "result",
+                "status": "ERROR",
+                "sat_result": "ERROR",
+                "solver": solver_name,
+                "precedence_mode": precedence_mode,
+                "encoding_variant": encoding_variant,
+                "runtime_seconds": round(time.perf_counter() - started, 6),
+                "objective": "internal_idle_slot_range_pstar",
+                "validation_errors": "",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        )
 
 
 def _process_tree_rss_bytes(pid: int) -> int | None:
-    """Return current RSS for the worker and all recursive child processes."""
-
     if psutil is None:
         return None
-
     try:
         root = psutil.Process(pid)
         processes = [root, *root.children(recursive=True)]
     except (psutil.Error, OSError):
         return None
-
     total = 0
-    found = False
-
     for process in processes:
         try:
             total += process.memory_info().rss
-            found = True
         except (psutil.Error, OSError):
             continue
+    return total
 
-    return total if found else None
 
-
-def _drain_worker_queue(
-    queue: mp.Queue,
+def _drain_queue(
+    output: mp.Queue[Any],
     metadata: dict[str, Any],
-    result_payload: dict[str, Any] | None,
+    result: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     while True:
         try:
-            message = queue.get_nowait()
+            message = output.get_nowait()
         except queue_module.Empty:
-            break
-
+            return result
         if message.get("message_type") == "metadata":
             metadata.update(
-                {
-                    key: value
-                    for key, value in message.items()
-                    if key != "message_type"
-                }
+                {key: value for key, value in message.items() if key != "message_type"}
             )
         elif message.get("message_type") == "result":
-            result_payload = message
-
-    return result_payload
+            result = message
 
 
-def _base_terminal_payload(
+def _terminal_payload(
     status: str,
+    *,
     solver_name: str,
     precedence_mode: str,
     encoding_variant: str,
-    runtime_s: float,
+    runtime_seconds: float,
 ) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+    return {
         "status": status,
         "sat_result": status_to_sat_result(status),
         "solver": solver_name,
         "precedence_mode": precedence_mode,
         "encoding_variant": encoding_variant,
-        "runtime_s": round(runtime_s, 6),
-        "total_breaks": None,
-        "fairness_gap": None,
-        "participant_breaks": "",
-        "busy_participants_per_slot": "",
-        "assignment": "",
-        "schedule_by_slot": "",
+        "runtime_seconds": round(runtime_seconds, 6),
+        "objective": "internal_idle_slot_range_pstar",
         "validation_errors": "",
-        "n_vars": None,
-        "n_clauses": None,
-        "n_hard_clauses": None,
-        "n_soft_clauses": None,
-        "n_optimization_clauses": 0,
-        "n_total_clauses": None,
-        "total_clauses": None,
-        "enabled_constraints": "",
         "error_type": "",
         "error_message": "",
     }
-    return payload
 
 
 def run_with_timeout(
     solver_name: str,
     instance_path: Path,
-    fairness_limit: int | None,
     precedence_mode: str,
     encoding_variant: str,
-    timeout_s: int,
+    timeout_seconds: float,
     verbose: bool,
 ) -> dict[str, Any]:
-    queue: mp.Queue = mp.Queue()
-
-    proc = mp.Process(
+    context = mp.get_context("spawn")
+    output: mp.Queue[Any] = context.Queue()
+    process = context.Process(
         target=_worker,
         args=(
             solver_name,
             str(instance_path),
-            fairness_limit,
             precedence_mode,
             encoding_variant,
             verbose,
-            queue,
+            output,
         ),
     )
-
     started = time.perf_counter()
-    deadline = started + timeout_s
-    peak_rss_bytes: int | None = None
+    deadline = started + timeout_seconds
     metadata: dict[str, Any] = {}
-    result_payload: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    peak_rss_bytes: int | None = None
+    process.start()
 
-    proc.start()
-
-    timed_out = False
-    while proc.is_alive():
-        current_rss = _process_tree_rss_bytes(proc.pid)
+    while process.is_alive() and time.perf_counter() < deadline:
+        current_rss = _process_tree_rss_bytes(process.pid)
         if current_rss is not None:
             peak_rss_bytes = max(peak_rss_bytes or 0, current_rss)
-
-        result_payload = _drain_worker_queue(
-            queue,
-            metadata,
-            result_payload,
+        result = _drain_queue(output, metadata, result)
+        process.join(
+            min(
+                MEMORY_SAMPLE_INTERVAL_SECONDS,
+                max(0.0, deadline - time.perf_counter()),
+            )
         )
 
-        remaining = deadline - time.perf_counter()
-        if remaining <= 0:
-            timed_out = True
-            break
-
-        proc.join(min(MEMORY_SAMPLE_INTERVAL_S, remaining))
-
-    # One last sample before termination/reaping when possible.
-    current_rss = _process_tree_rss_bytes(proc.pid)
-    if current_rss is not None:
-        peak_rss_bytes = max(peak_rss_bytes or 0, current_rss)
-
-    if timed_out and proc.is_alive():
-        proc.terminate()
-        proc.join()
-
-        result_payload = _base_terminal_payload(
-            status="TIMEOUT",
+    if process.is_alive():
+        process.terminate()
+        process.join(5)
+        result = _terminal_payload(
+            "TIMEOUT",
             solver_name=solver_name,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
-            runtime_s=time.perf_counter() - started,
+            runtime_seconds=time.perf_counter() - started,
         )
     else:
-        proc.join()
-
-        # Multiprocessing.Queue may flush shortly after the child exits.
-        grace_deadline = time.perf_counter() + QUEUE_RESULT_GRACE_S
-        while result_payload is None and time.perf_counter() < grace_deadline:
-            result_payload = _drain_worker_queue(
-                queue,
-                metadata,
-                result_payload,
-            )
-            if result_payload is None:
+        process.join()
+        grace_deadline = time.perf_counter() + QUEUE_GRACE_SECONDS
+        while result is None and time.perf_counter() < grace_deadline:
+            result = _drain_queue(output, metadata, result)
+            if result is None:
                 time.sleep(0.01)
-
-        if result_payload is None:
-            result_payload = _base_terminal_payload(
-                status="ERROR",
+        if result is None:
+            result = _terminal_payload(
+                "ERROR",
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
                 encoding_variant=encoding_variant,
-                runtime_s=time.perf_counter() - started,
+                runtime_seconds=time.perf_counter() - started,
             )
-            result_payload["error_type"] = "NoWorkerPayload"
-            result_payload["error_message"] = "Worker returned nothing"
+            result["error_type"] = "NoWorkerPayload"
+            result["error_message"] = "Worker returned no result"
 
-    # Preserve early model metadata even when the solve is terminated by timeout.
     for key, value in metadata.items():
-        if result_payload.get(key) is None:
-            result_payload[key] = value
-
-    result_payload["sat_result"] = status_to_sat_result(
-        result_payload.get("status")
-    )
-    result_payload["peak_memory_mb"] = (
+        result.setdefault(key, value)
+    result["peak_memory_mb"] = (
         None
         if peak_rss_bytes is None
         else round(peak_rss_bytes / (1024 * 1024), 3)
     )
-    result_payload["memory_metric"] = "peak_process_tree_rss_mb"
-    _finalize_formula_metrics(result_payload)
-
-    queue.close()
-    queue.join_thread()
-    return result_payload
-
-
-# =========================================================
-# OUTPUT FORMATTERS
-# =========================================================
+    result["memory_metric"] = "peak_process_tree_rss_mb"
+    result["sat_result"] = status_to_sat_result(result.get("status"))
+    output.close()
+    output.join_thread()
+    return result
 
 
-def format_table3_cell(result: dict[str, Any]) -> str:
-    sat_result = result.get("sat_result") or status_to_sat_result(
-        result.get("status")
-    )
-    runtime = result.get("runtime_s")
-    breaks = result.get("fairness_gap")
-
-    if sat_result == "TIMEOUT":
-        return f"TO {breaks if breaks is not None else '-'}"
-
-    if sat_result == "UNSAT":
-        return "UNSAT"
-
-    if sat_result == "SAT":
-        if runtime is None:
-            return f"SAT ? {breaks}"
-        return f"{runtime:.1f} {breaks}"
-
-    return "ERR"
-
-
-def print_detailed_results(results: list[dict[str, Any]]) -> None:
-    print("\n")
-    print("=" * 151)
-    print("DETAILED PER-RUN RESULTS")
-    print("=" * 151)
-
-    header = (
-        f"{'instance':<28}"
-        f"{'solver':<13}"
-        f"{'precedence':<13}"
-        f"{'variant':<10}"
-        f"{'result':<10}"
-        f"{'time(s)':>12}"
-        f"{'variables':>14}"
-        f"{'clauses(total)':>18}"
-        f"{'peak memory(MB)':>18}"
-    )
-    print(header)
-    print("-" * 151)
-
-    for row in results:
-        runtime = row.get("runtime_s")
-        runtime_text = "N/A" if runtime is None else f"{runtime:.6f}"
-        memory = row.get("peak_memory_mb")
-        memory_text = "N/A" if memory is None else f"{memory:.3f}"
-
-        print(
-            f"{row['instance']:<28}"
-            f"{row['solver']:<13}"
-            f"{row['precedence_mode']:<13}"
-            f"{row['encoding_variant']:<10}"
-            f"{row.get('sat_result', 'ERROR'):<10}"
-            f"{runtime_text:>12}"
-            f"{_format_number(row.get('n_vars')):>14}"
-            f"{_format_number(row.get('n_total_clauses')):>18}"
-            f"{memory_text:>18}"
-        )
-
-    print("=" * 151)
+def _detailed_csv_path(csv_path: str) -> Path:
+    path = Path(csv_path)
+    suffix = path.suffix or ".csv"
+    return path.with_name(f"{path.stem}_detailed{suffix}")
 
 
 def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-
     preferred_fields = [
         "instance",
         "sat_result",
         "status",
-        "runtime_s",
-        "n_vars",
-        "n_hard_clauses",
-        "n_soft_clauses",
-        "n_optimization_clauses",
-        "n_total_clauses",
+        "runtime_seconds",
         "peak_memory_mb",
         "memory_metric",
         "solver",
         "precedence_mode",
-        "staircase",
         "encoding_variant",
-        "total_breaks",
-        "fairness_gap",
-        "participant_breaks",
+        "domain_mode",
+        "objective",
+        "objective_value",
+        "proven_optimum",
+        "objective_participant_count",
+        "objective_participants",
+        "idle_range_pstar",
+        "all_participant_idle_range",
+        "total_internal_idle_slots",
+        "initial_schedule_candidates",
+        "reduced_schedule_candidates",
+        "removed_schedule_candidates",
+        "n_vars",
+        "n_hard_clauses",
+        "n_soft_clauses",
+        "n_total_clauses",
+        "n_objective_lits",
+        "precedence_direct_edges",
+        "precedence_closure_edges",
+        "precedence_max_distance",
+        "participant_internal_idle_slots",
         "busy_participants_per_slot",
         "assignment",
         "schedule_by_slot",
@@ -790,249 +444,137 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "error_type",
         "error_message",
     ]
-
     extra_fields = sorted(
         {
             key
-            for row in results
-            for key in row
+            for result in results
+            for key in result
             if key not in preferred_fields
         }
     )
-    fieldnames = preferred_fields + extra_fields
-
-    with path.open("w", newline="", encoding="utf-8") as handle:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(
-            handle,
-            fieldnames=fieldnames,
+            stream,
+            fieldnames=[*preferred_fields, *extra_fields],
             extrasaction="ignore",
         )
         writer.writeheader()
         writer.writerows(results)
 
 
-# =========================================================
-# MAIN
-# =========================================================
+def format_table_cell(result: dict[str, Any]) -> str:
+    status = result.get("sat_result")
+    if status == "TIMEOUT":
+        return "TO"
+    if status == "UNSAT":
+        return "UNSAT"
+    if status == "ERROR":
+        return "ERR"
+    runtime = result.get("runtime_seconds")
+    objective = result.get("idle_range_pstar")
+    return f"{float(runtime):.1f} {objective}"
 
 
-def main() -> None:
-    args = parse_args()
-
-    fairness_limit = normalize_fairness(args.fairness)
-    instances = collect_instances(args.instance, args.data_dir)
-    solver_list = selected_solvers(args.solver)
-    precedence_modes = selected_precedence_modes(args.precedence_mode)
-    variants = selected_variants(args.encoding_variant)
-
-    results: list[dict[str, Any]] = []
-
-    total_runs = (
-        len(instances)
-        * len(solver_list)
-        * len(precedence_modes)
-        * len(variants)
-    )
-    current_run = 0
-
-    print("\n" + "=" * 120)
-    print("B2B SAT BENCHMARK")
-    print("=" * 120)
-
-    if psutil is None:
-        print(
-            "WARNING: psutil is not installed. peak_memory_mb will be N/A. "
-            "Install it with: pip install psutil"
-        )
-
-    for instance_path in instances:
-        instance_name = instance_path.stem
-
-        for precedence_mode in precedence_modes:
-            staircase = "yes" if precedence_mode == "staircase" else "no"
-
-            for solver_name in solver_list:
-                for variant in variants:
-                    current_run += 1
-
-                    print(
-                        f"\n[{current_run}/{total_runs}] "
-                        f"{instance_name} | "
-                        f"{solver_name} | "
-                        f"{precedence_mode} | "
-                        f"{variant}"
-                    )
-
-                    result = run_with_timeout(
-                        solver_name=solver_name,
-                        instance_path=instance_path,
-                        fairness_limit=fairness_limit,
-                        precedence_mode=precedence_mode,
-                        encoding_variant=variant,
-                        timeout_s=args.timeout,
-                        verbose=args.verbose,
-                    )
-
-                    row = {
-                        "instance": instance_name,
-                        "staircase": staircase,
-                        **result,
-                    }
-                    results.append(row)
-
-                    print(
-                        f"   result={result.get('sat_result')} | "
-                        f"status={result.get('status')} | "
-                        f"time={result.get('runtime_s')}s | "
-                        f"variables={_format_number(result.get('n_vars'))} | "
-                        f"clauses={_format_number(result.get('n_total_clauses'))} | "
-                        f"memory={_format_memory(result.get('peak_memory_mb'))} | "
-                        f"breaks={result.get('total_breaks')}"
-                    )
-
-                    if result.get("status") == "ERROR":
-                        print(
-                            f"   error={result.get('error_type')}: "
-                            f"{result.get('error_message')}"
-                        )
-
-    # =====================================================
-    # DETAILED OUTPUT
-    # =====================================================
-
-    print_detailed_results(results)
-
-    detailed_csv_path = (
-        Path(args.long_csv)
-        if args.long_csv
-        else _default_detailed_csv_path(args.csv)
-    )
-    write_detailed_csv(detailed_csv_path, results)
-    print(f"\nDetailed CSV exported to: {detailed_csv_path}")
-
-    # =====================================================
-    # AGGREGATE TABLE 3
-    # =====================================================
-
+def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
     grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
-
     for result in results:
         key = (
             result["instance"],
-            result["staircase"],
+            result["precedence_mode"],
             result["solver"],
         )
-
-        if key not in grouped:
-            grouped[key] = {
+        row = grouped.setdefault(
+            key,
+            {
                 "instance": result["instance"],
-                "staircase": result["staircase"],
+                "staircase": (
+                    "yes" if result["precedence_mode"] == "staircase" else "no"
+                ),
                 "solver": result["solver"],
-            }
+                "objective": "IdleRange(P*)",
+                "domain_mode": "reduced",
+            },
+        )
+        row[result["encoding_variant"]] = format_table_cell(result)
 
-        grouped[key][result["encoding_variant"]] = format_table3_cell(result)
-
-    table3_rows = []
-    for row in grouped.values():
+    rows = list(grouped.values())
+    for row in rows:
         for variant in VARIANTS:
             row.setdefault(variant, "-")
-        table3_rows.append(row)
-
-    table3_rows.sort(
-        key=lambda item: (
-            item["instance"],
-            item["solver"],
-            item["staircase"],
-        )
-    )
-
-    print("\n")
-    print("=" * 150)
-
-    header = (
-        f"{'instance':<30}"
-        f"{'stairs':<10}"
-        f"{'solver':<15}"
-    )
-    for variant in VARIANTS:
-        header += f"{variant:<18}"
-    print(header)
-    print("=" * 150)
-
-    for row in table3_rows:
-        line = (
-            f"{row['instance']:<30}"
-            f"{row['staircase']:<10}"
-            f"{row['solver']:<15}"
-        )
-        for variant in VARIANTS:
-            line += f"{row[variant]:<18}"
-        print(line)
-
-    print("=" * 150)
-
-    # =====================================================
-    # EXPORT TABLE 3 CSV
-    # =====================================================
-
-    csv_path = Path(args.csv)
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    csv_fields = ["instance", "staircase", "solver", *VARIANTS]
-
-    with csv_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=csv_fields)
+    rows.sort(key=lambda row: (row["instance"], row["solver"], row["staircase"]))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "instance",
+        "staircase",
+        "solver",
+        "objective",
+        "domain_mode",
+        *VARIANTS,
+    ]
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(table3_rows)
-
-    print(f"\nTable-3 CSV exported to: {csv_path}")
-
-    # =====================================================
-    # SUMMARY
-    # =====================================================
-
-    print("\nSUMMARY")
-
-    for solver_name in solver_list:
-        sat_count = sum(
-            1
-            for result in results
-            if result["solver"] == solver_name
-            and result["sat_result"] == "SAT"
-        )
-        unsat_count = sum(
-            1
-            for result in results
-            if result["solver"] == solver_name
-            and result["sat_result"] == "UNSAT"
-        )
-        timeout_count = sum(
-            1
-            for result in results
-            if result["solver"] == solver_name
-            and result["sat_result"] == "TIMEOUT"
-        )
-        error_count = sum(
-            1
-            for result in results
-            if result["solver"] == solver_name
-            and result["sat_result"] == "ERROR"
-        )
-
-        print(
-            f"{solver_name:<15}"
-            f" sat={sat_count:<5}"
-            f" unsat={unsat_count:<5}"
-            f" timeout={timeout_count:<5}"
-            f" error={error_count:<5}"
-        )
-
-    print("\nDone.")
+        writer.writerows(rows)
 
 
-# =========================================================
-# ENTRY POINT
-# =========================================================
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        instances = collect_instances(args.instance, args.data_dir)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}")
+        return 2
+
+    solvers = selected(args.solver, SOLVERS)
+    precedence_modes = selected(args.precedence_mode, PRECEDENCE_MODES, "both")
+    variants = selected(args.encoding_variant, VARIANTS)
+    total_runs = len(instances) * len(solvers) * len(precedence_modes) * len(variants)
+    results: list[dict[str, Any]] = []
+    current_run = 0
+
+    print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
+    print("Domain mode: exact Reduced Domain (Full/Reduced counts are reported).")
+    for instance_path in instances:
+        for precedence_mode in precedence_modes:
+            for solver_name in solvers:
+                for variant in variants:
+                    current_run += 1
+                    print(
+                        f"[{current_run}/{total_runs}] {instance_path.stem} | "
+                        f"{solver_name} | {precedence_mode} | {variant}",
+                        flush=True,
+                    )
+                    result = run_with_timeout(
+                        solver_name,
+                        instance_path,
+                        precedence_mode,
+                        variant,
+                        args.timeout,
+                        args.verbose,
+                    )
+                    result = {"instance": instance_path.stem, **result}
+                    results.append(result)
+                    print(
+                        f"    {result['sat_result']} | "
+                        f"IdleRange(P*)={result.get('idle_range_pstar')} | "
+                        f"time={result.get('runtime_seconds')}s",
+                        flush=True,
+                    )
+
+    detailed_path = Path(args.long_csv) if args.long_csv else _detailed_csv_path(args.csv)
+    aggregate_path = Path(args.csv)
+    write_detailed_csv(detailed_path, results)
+    write_aggregate_csv(aggregate_path, results)
+    print(f"Detailed CSV: {detailed_path}")
+    print(f"Aggregate CSV: {aggregate_path}")
+
+    errors = sum(result["sat_result"] == "ERROR" for result in results)
+    timeouts = sum(result["sat_result"] == "TIMEOUT" for result in results)
+    print(f"Completed with errors={errors}, timeouts={timeouts}.")
+    return 2 if errors else 0
+
 
 if __name__ == "__main__":
     mp.freeze_support()
-    main()
+    raise SystemExit(main())
