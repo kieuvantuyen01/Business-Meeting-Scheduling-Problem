@@ -160,6 +160,10 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "precedence_closure_edges": artifacts.precedence_transitive_edges,
         "precedence_max_distance": artifacts.precedence_max_distance,
         "enabled_constraints": " | ".join(artifacts.enabled_constraints),
+        "maxsat_backend_preference": getattr(solver_object, "backend", ""),
+        "resolved_uwrmaxsat_bin": str(
+            getattr(solver_object, "resolved_uwrmaxsat_bin", "") or ""
+        ),
     }
 
 
@@ -176,6 +180,10 @@ def _result_payload(
         "message_type": "result",
         "status": result.get("status", "ERROR"),
         "solver": solver_name,
+        "solver_backend": result.get("solver_backend", result.get("solver", "")),
+        "solver_binary": result.get("solver_binary", ""),
+        "solver_message": result.get("solver_message", ""),
+        "maxsat_backend_preference": result.get("maxsat_backend_preference", ""),
         "precedence_mode": precedence_mode,
         "encoding_variant": encoding_variant,
         "runtime_seconds": round(runtime_seconds, 6),
@@ -276,6 +284,47 @@ def _process_tree_rss_bytes(pid: int) -> int | None:
     return total
 
 
+def _terminate_process_tree(process: mp.Process, grace_seconds: float = 5.0) -> None:
+    """Terminate the worker and any external solver children it launched."""
+
+    if process.pid is None:
+        return
+
+    if psutil is None:
+        process.terminate()
+        process.join(grace_seconds)
+        if process.is_alive() and hasattr(process, "kill"):
+            process.kill()
+            process.join(grace_seconds)
+        return
+
+    try:
+        root = psutil.Process(process.pid)
+        children = root.children(recursive=True)
+    except (psutil.Error, OSError):
+        children = []
+
+    for child in children:
+        try:
+            child.terminate()
+        except (psutil.Error, OSError):
+            continue
+
+    process.terminate()
+    process.join(grace_seconds)
+
+    _, alive_children = psutil.wait_procs(children, timeout=grace_seconds)
+    for child in alive_children:
+        try:
+            child.kill()
+        except (psutil.Error, OSError):
+            continue
+
+    if process.is_alive() and hasattr(process, "kill"):
+        process.kill()
+        process.join(grace_seconds)
+
+
 def _drain_queue(
     output: mp.Queue[Any],
     metadata: dict[str, Any],
@@ -357,8 +406,7 @@ def run_with_timeout(
         )
 
     if process.is_alive():
-        process.terminate()
-        process.join(5)
+        _terminate_process_tree(process)
         result = _terminal_payload(
             "TIMEOUT",
             solver_name=solver_name,
@@ -413,6 +461,11 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "peak_memory_mb",
         "memory_metric",
         "solver",
+        "solver_backend",
+        "solver_binary",
+        "solver_message",
+        "maxsat_backend_preference",
+        "resolved_uwrmaxsat_bin",
         "precedence_mode",
         "encoding_variant",
         "domain_mode",
