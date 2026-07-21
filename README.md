@@ -37,6 +37,7 @@ python Main.py \
   --timeout 120 \
   --csv summary.csv
 ```
+python src/Main.py --instance data_table08_prec/tic-12.prec15.dzn --precedence-mode both --encoding-variant all
 
 Run only Incremental SAT with staircase precedence:
 
