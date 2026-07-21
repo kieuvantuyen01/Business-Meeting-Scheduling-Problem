@@ -18,7 +18,8 @@ def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
 
 
 def _new_solver(clauses: list[list[int]], preferred: str = "cadical"):
-    """Create a SAT solver, falling back to Glucose3 when CaDiCaL is unavailable."""
+    """Create a SAT solver, falling back to Glucose3 when needed."""
+
     solvers = import_module("pysat.solvers")
     if preferred == "glucose":
         return solvers.Glucose3(bootstrap_with=clauses)
@@ -29,21 +30,16 @@ def _new_solver(clauses: list[list[int]], preferred: str = "cadical"):
 
 
 class B2BIncrementalSATSolver:
-    """Incremental SAT optimization of the internal-idle-slot fairness gap.
+    """Incremental SAT optimization of the idle-slot range over P*.
 
-    For participant p, B(p) is the number of idle slots strictly between p's
-    first and last meetings. The optimized objective is::
-
-        max_p B(p) - min_p B(p)
-
-    One SAT solver is retained while an incremental totalizer imposes candidate
-    upper bounds through assumptions.
+    One SAT solver is retained while an incremental totalizer imposes upper
+    bounds on ``max_{p in P*} B(p) - min_{p in P*} B(p)`` through assumptions.
+    No hard objective cap or secondary Lexicographic objective is generated.
     """
 
     def __init__(
         self,
         instance_or_path: B2BInstance | str | Path,
-        fairness_limit: int | None = None,
         precedence_mode: str = "traditional",
         encoding_variant: str = "imp12+",
         solver_name: str = "cadical",
@@ -51,7 +47,6 @@ class B2BIncrementalSATSolver:
         self.inst = _ensure_instance(instance_or_path)
         self.model = B2BSATModel(
             inst=self.inst,
-            fairness_limit=fairness_limit,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
         )
@@ -73,17 +68,37 @@ class B2BIncrementalSATSolver:
             "precedence_mode": self.artifacts.precedence_mode,
             "encoding_variant": self.artifacts.encoding_variant,
             "objective": self.artifacts.objective_name,
+            "objective_participant_count": len(
+                self.artifacts.objective_participants
+            ),
+            "objective_participants": tuple(
+                participant + 1
+                for participant in self.artifacts.objective_participants
+            ),
             "objective_value": (
-                stats.fairness_gap if stats is not None else proven_optimum
+                stats.objective_gap if stats is not None else proven_optimum
             ),
             "proven_optimum": proven_optimum,
-            "hard_fairness_limit": self.artifacts.fairness_limit,
             "assignment": assignment,
             "stats": stats,
             "validation_errors": checks or [],
             "n_vars": self.artifacts.n_vars,
             "n_clauses": self.artifacts.n_clauses,
+            "n_hard_clauses": self.artifacts.n_clauses,
+            "n_soft": 0,
+            "n_soft_clauses": 0,
             "n_objective_lits": len(self.artifacts.objective_lits),
+            "initial_schedule_candidates": (
+                self.artifacts.initial_schedule_candidates
+            ),
+            "reduced_schedule_candidates": (
+                self.artifacts.reduced_schedule_candidates
+            ),
+            "precedence_direct_edges": self.artifacts.precedence_direct_edges,
+            "precedence_closure_edges": (
+                self.artifacts.precedence_transitive_edges
+            ),
+            "precedence_max_distance": self.artifacts.precedence_max_distance,
             "enabled_constraints": self.artifacts.enabled_constraints,
         }
 
@@ -111,15 +126,16 @@ class B2BIncrementalSATSolver:
                 return self._pack_result("UNSAT", None, None)
 
             initial_model = solver.get_model()
-            best_assignment, best_stats, checks = self._evaluate_sat_model(initial_model)
+            best_assignment, best_stats, checks = self._evaluate_sat_model(
+                initial_model
+            )
             if checks:
                 return self._pack_result("ERROR", best_assignment, best_stats, checks)
 
-            best_obj = best_stats.fairness_gap
+            best_objective = best_stats.objective_gap
             if verbose:
-                print(f"[IncrementalSAT] initial internal-break gap={best_obj}")
-
-            if best_obj == 0:
+                print(f"[IncrementalSAT] initial IdleRange(P*)={best_objective}")
+            if best_objective == 0:
                 return self._pack_result(
                     "OPTIMAL",
                     best_assignment,
@@ -129,31 +145,31 @@ class B2BIncrementalSATSolver:
 
             objective_lits = self.artifacts.objective_lits
             if not objective_lits:
-                checks = [
-                    "nonzero schedule gap but the encoder produced no objective literals"
-                ]
-                return self._pack_result("ERROR", best_assignment, best_stats, checks)
+                return self._pack_result(
+                    "ERROR",
+                    best_assignment,
+                    best_stats,
+                    ["nonzero schedule gap but no objective literals were generated"],
+                )
 
             with ITotalizer(
                 lits=objective_lits,
-                ubound=best_obj,
+                ubound=best_objective,
                 top_id=self.artifacts.n_vars,
             ) as totalizer:
                 solver.append_formula(totalizer.cnf.clauses)
-                low, high = 0, best_obj - 1
+                low, high = 0, best_objective - 1
 
                 while low <= high:
                     bound = (low + high) // 2
                     # rhs[bound] means at least bound+1 objective literals are true.
-                    # Its negation therefore imposes sum(objective_lits) <= bound.
-                    sat = solver.solve(assumptions=[-totalizer.rhs[bound]])
+                    satisfiable = solver.solve(assumptions=[-totalizer.rhs[bound]])
                     if verbose:
                         print(
-                            "[IncrementalSAT] internal-break gap <= "
-                            f"{bound}: {'SAT' if sat else 'UNSAT'}"
+                            f"[IncrementalSAT] IdleRange(P*) <= {bound}: "
+                            f"{'SAT' if satisfiable else 'UNSAT'}"
                         )
-
-                    if sat:
+                    if satisfiable:
                         candidate_model = solver.get_model()
                         (
                             candidate_assignment,
@@ -170,7 +186,6 @@ class B2BIncrementalSATSolver:
                                 candidate_stats,
                                 candidate_checks,
                             )
-
                         best_assignment = candidate_assignment
                         best_stats = candidate_stats
                         high = bound - 1
@@ -178,15 +193,13 @@ class B2BIncrementalSATSolver:
                         low = bound + 1
 
             final_checks = self.model.validate_assignment(best_assignment)
-            if best_stats.fairness_gap != low:
+            if best_stats.objective_gap != low:
                 final_checks.append(
                     "optimization mismatch: "
-                    f"proven optimum={low}, schedule gap={best_stats.fairness_gap}"
+                    f"proven optimum={low}, schedule gap={best_stats.objective_gap}"
                 )
-
-            status = "OPTIMAL" if not final_checks else "ERROR"
             return self._pack_result(
-                status,
+                "OPTIMAL" if not final_checks else "ERROR",
                 best_assignment,
                 best_stats,
                 final_checks,
@@ -196,44 +209,30 @@ class B2BIncrementalSATSolver:
 
 def solve_b2b(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
     precedence_mode: str = "traditional",
     encoding_variant: str = "imp12+",
     verbose: bool = False,
+    solver_name: str = "cadical",
 ) -> dict[str, Any]:
     return B2BIncrementalSATSolver(
         instance_or_path=instance_or_path,
-        fairness_limit=fairness_limit,
         precedence_mode=precedence_mode,
         encoding_variant=encoding_variant,
+        solver_name=solver_name,
     ).solve(verbose=verbose)
 
 
 def solve_b2b_traditional(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
 ) -> dict[str, Any]:
-    return solve_b2b(
-        instance_or_path,
-        fairness_limit,
-        "traditional",
-        encoding_variant,
-        verbose,
-    )
+    return solve_b2b(instance_or_path, "traditional", encoding_variant, verbose)
 
 
 def solve_b2b_staircase(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
 ) -> dict[str, Any]:
-    return solve_b2b(
-        instance_or_path,
-        fairness_limit,
-        "staircase",
-        encoding_variant,
-        verbose,
-    )
+    return solve_b2b(instance_or_path, "staircase", encoding_variant, verbose)

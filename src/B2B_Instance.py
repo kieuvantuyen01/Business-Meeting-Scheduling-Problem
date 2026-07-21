@@ -66,16 +66,19 @@ class PrecedenceGraphInfo:
 
 @dataclass(frozen=True)
 class B2BSolutionStats:
-    """Schedule statistics for the total-break-slot objective.
+    """Schedule statistics for the internal-idle-slot range over P*.
 
     ``participant_breaks[p]`` is retained for backward compatibility, but now
     stores the total number of idle time slots between consecutive meetings of
-    participant p, not the number of contiguous break groups.
+    participant p, not the number of contiguous break groups. The objective
+    gap is evaluated only over ``P* = {p : |M_p| >= 2}``.
     """
 
     total_breaks: int
     participant_breaks: list[int]
     objective_gap: int
+    all_participant_idle_range: int
+    objective_participants: tuple[int, ...]
     meetings_per_slot: list[list[int]]
     busy_participants_per_slot: list[int]
 
@@ -89,6 +92,16 @@ class B2BSolutionStats:
         """Internal idle-slot count B(p) for every participant."""
         return self.participant_breaks
 
+    @property
+    def idle_range(self) -> int:
+        """Range of internal-idle totals over P*."""
+        return self.objective_gap
+
+    @property
+    def objective_participant_ids(self) -> tuple[int, ...]:
+        """One-based participant IDs in P*."""
+        return tuple(participant + 1 for participant in self.objective_participants)
+
     # Backward-compatible names used by the existing benchmark runner.
     @property
     def total_break_slots(self) -> int:
@@ -98,17 +111,12 @@ class B2BSolutionStats:
     def participant_break_slots(self) -> list[int]:
         return self.participant_internal_idle_slots
 
-    @property
-    def fairness_gap(self) -> int:
-        """Deprecated compatibility alias for older solver wrappers."""
-        return self.objective_gap
-
-
 @dataclass(frozen=True)
 class B2BModelArtifacts:
     cnf: CNF
     objective_lits: list[int]
     objective_name: str
+    objective_participants: tuple[int, ...]
     objective_gap_lits: list[int]
     hole_lits_by_participant: list[list[int]]
     sorted_hole_lits_by_participant: list[list[int]]
@@ -125,17 +133,6 @@ class B2BModelArtifacts:
     precedence_cycle_nodes: tuple[int, ...]
     precedence_max_distance: int
     objective_encoding: str
-
-    @property
-    def fairness_limit(self) -> None:
-        """Deprecated compatibility alias; no hard gap bound exists."""
-        return None
-
-    @property
-    def fairness_gap_lits(self) -> list[int]:
-        """Deprecated compatibility alias for objective-gap literals."""
-        return self.objective_gap_lits
-
 
 # ---------------------------------------------------------------------------
 # MiniZinc .dzn parser
@@ -580,14 +577,16 @@ def reduce_domains_with_precedence(
 
 
 class B2BSATModel:
-    """Optimized exact encoder for the max/min internal-idle-slot gap.
+    """Optimized exact encoder for the max/min internal-idle-slot gap over P*.
 
     The only optimization objective is
 
-        minimize max_p B(p) - min_p B(p),
+        minimize max_{p in P*} B(p) - min_{p in P*} B(p),
 
     where ``B(p)`` is the total number of empty slots strictly between the first
-    and last meetings of participant ``p``. No hard upper bound on this gap is generated.
+    and last meetings of participant ``p``, and
+    ``P* = {p : |M_p| >= 2}``. Participants outside P* always have B(p)=0 and
+    are excluded from the range. No hard upper bound on this gap is generated.
 
     The key identity used by the objective encoding is
 
@@ -602,23 +601,20 @@ class B2BSATModel:
         inst: B2BInstance,
         precedence_mode: PrecedenceMode = "staircase",
         encoding_variant: EncodingVariant = "imp12+",
-        **legacy_options: object,
     ) -> None:
         if precedence_mode not in VALID_PRECEDENCE_MODES:
             raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
 
-        # Older wrappers may still pass the removed keyword. Accepting and
-        # discarding it preserves compatibility without creating any constraint.
-        legacy_options.pop("fairness_limit", None)
-        if legacy_options:
-            unknown = ", ".join(sorted(legacy_options))
-            raise TypeError(f"Unexpected model option(s): {unknown}")
-
         self.inst = inst
         self.precedence_mode = precedence_mode
         self.encoding_variant = encoding_variant
+        self.objective_participants = tuple(
+            participant
+            for participant, meeting_count in enumerate(inst.n_meetings_business)
+            if meeting_count >= 2
+        )
         self.graph = build_precedence_graph(inst.precedences)
         (
             self._eligible_slots,
@@ -832,7 +828,8 @@ class B2BSATModel:
         self._artifacts = B2BModelArtifacts(
             cnf=cnf,
             objective_lits=gap_lits,
-            objective_name="max_min_total_internal_idle_slot_gap",
+            objective_name="internal_idle_slot_range_pstar",
+            objective_participants=self.objective_participants,
             objective_gap_lits=gap_lits,
             hole_lits_by_participant=[[] for _ in range(self.inst.n_business)],
             sorted_hole_lits_by_participant=threshold_lits,
@@ -855,7 +852,7 @@ class B2BSATModel:
         return self._artifacts
 
     def build_wcnf(self) -> WCNF:
-        """Build partial MaxSAT minimizing only the max/min idle-slot gap."""
+        """Build partial MaxSAT minimizing only the idle-slot range over P*."""
 
         artifacts = self.build_base_cnf()
         wcnf = WCNF()
@@ -1116,13 +1113,14 @@ class B2BSATModel:
         return max(0, possible[-1] - possible[0] + 1 - meetings)
 
     def _add_span_break_thresholds(self, cnf: CNF) -> list[list[int]]:
-        """Encode ``B(p)>=k`` directly from first and last occupied slots."""
+        """Encode ``B(p)>=k`` directly for objective participants in P*."""
 
         self.enabled_constraints.append(
-            "linear first/last span encoding: B(p)=last-first+1-|Mp|"
+            "linear P* first/last span encoding: B(p)=last-first+1-|Mp|"
         )
         self._channel_used_slots(cnf)
         thresholds_by_participant: list[list[int]] = []
+        objective_participants = set(self.objective_participants)
 
         for participant in range(self.inst.n_business):
             meetings = self.inst.n_meetings_business[participant]
@@ -1131,7 +1129,9 @@ class B2BSATModel:
                 for slot in range(self.inst.n_total_slots)
                 if self.used_or_none(participant, slot) is not None
             ]
-            if meetings <= 0 or not possible_slots:
+            # Participants outside P* have at most one meeting, hence B(p)=0.
+            # Skip their prefix/suffix variables entirely to keep the encoding compact.
+            if participant not in objective_participants or not possible_slots:
                 thresholds_by_participant.append([])
                 continue
 
@@ -1227,13 +1227,19 @@ class B2BSATModel:
         cnf: CNF,
         thresholds_by_participant: list[list[int]],
     ) -> list[int]:
-        """Encode exactly ``max_p B(p)-min_p B(p)`` with unary thresholds."""
+        """Encode exactly ``max_{p in P*} B(p)-min_{p in P*} B(p)``."""
 
         self.enabled_constraints.append(
-            "exact max/min objective gap with no hard upper bound"
+            "exact max/min objective gap over P* with no hard upper bound"
         )
+        if len(self.objective_participants) <= 1:
+            return []
+
         global_upper = max(
-            (len(thresholds) for thresholds in thresholds_by_participant),
+            (
+                len(thresholds_by_participant[participant])
+                for participant in self.objective_participants
+            ),
             default=0,
         )
         gap_lits: list[int] = []
@@ -1249,9 +1255,9 @@ class B2BSATModel:
             gap_lits.append(gap_lit)
 
             present = [
-                thresholds[amount - 1]
-                for thresholds in thresholds_by_participant
-                if amount <= len(thresholds)
+                thresholds_by_participant[participant][amount - 1]
+                for participant in self.objective_participants
+                if amount <= len(thresholds_by_participant[participant])
             ]
 
             if present:
@@ -1261,7 +1267,7 @@ class B2BSATModel:
             else:
                 cnf.append([-max_lit])
 
-            if len(present) != self.inst.n_business:
+            if len(present) != len(self.objective_participants):
                 cnf.append([-min_lit])
             else:
                 for threshold in present:
@@ -1341,13 +1347,27 @@ class B2BSATModel:
                     slots[-1] - slots[0] + 1 - len(slots)
                 )
 
+        objective_values = [
+            participant_breaks[participant]
+            for participant in self.objective_participants
+        ]
+        objective_gap = (
+            max(objective_values) - min(objective_values)
+            if len(objective_values) >= 2
+            else 0
+        )
+        all_participant_gap = (
+            max(participant_breaks) - min(participant_breaks)
+            if len(participant_breaks) >= 2
+            else 0
+        )
+
         return B2BSolutionStats(
             total_breaks=sum(participant_breaks),
             participant_breaks=participant_breaks,
-            objective_gap=(
-                max(participant_breaks, default=0)
-                - min(participant_breaks, default=0)
-            ),
+            objective_gap=objective_gap,
+            all_participant_idle_range=all_participant_gap,
+            objective_participants=self.objective_participants,
             meetings_per_slot=meetings_per_slot,
             busy_participants_per_slot=[
                 2 * len(meetings) for meetings in meetings_per_slot
@@ -1459,6 +1479,10 @@ def _main() -> None:
     print(f"vars={artifacts.n_vars}")
     print(f"clauses={artifacts.n_clauses}")
     print(f"objective={artifacts.objective_name}")
+    print(
+        "objective_participants="
+        f"{[participant + 1 for participant in artifacts.objective_participants]}"
+    )
     print(f"objective_encoding={artifacts.objective_encoding}")
     print(f"objective_literals={len(artifacts.objective_lits)}")
     print("enabled_constraints=")
