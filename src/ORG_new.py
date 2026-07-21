@@ -45,14 +45,14 @@ if ARGS.fairness is not None:
     )
 HARD_FAIRNESS_LIMIT = None
 
-# Folder chứa toàn bộ file .dzn
-INPUT_DIR = './data_table06_forb'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-# Folder chứa kết quả
-OUTPUT_DIR = './output'
+INPUT_DIR = os.path.join(PROJECT_DIR, 'data_table08_prec')
+OUTPUT_DIR = os.path.join(PROJECT_DIR, 'output')
 
 # Một bảng CSV tổng hợp cho toàn bộ instance, tương tự detailed CSV trong Main.
-CSV_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'ORG_new_results_table06.csv')
+CSV_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'ORG_new_results_table08.csv')
 
 # Giống Main.py: lấy peak RSS của tiến trình chạy instance và toàn bộ child process.
 MEMORY_SAMPLE_INTERVAL_S = 0.05
