@@ -14,8 +14,14 @@ except ImportError:  # Memory remains optional for benchmark portability.
     psutil = None
 
 from IncrementalSAT_Solver import B2BIncrementalSATSolver
-from MaxSAT_Solver import B2BMaxSATSolver
+from MaxSAT_Solver import (
+    B2BMaxSATSolver,
+    UWRMAXSAT_NOT_FOUND_MESSAGE,
+    executable_sha256,
+    resolve_uwrmaxsat_binary,
+)
 from Multiple_SAT import B2BMultipleSATSolver
+from SAT_Backend import require_sat_backend
 
 
 VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
@@ -24,6 +30,8 @@ PRECEDENCE_MODES = ["traditional", "staircase"]
 PRECEDENCE_ENCODINGS = ["pairwise", "sparse_suffix"]
 PRECEDENCE_GRAPHS = ["direct", "distance_closure"]
 DOMAIN_MODES = ["full", "reduced"]
+MAXSAT_BACKENDS = ["uwrmaxsat", "rc2"]
+SAT_BACKENDS = ["cadical", "glucose"]
 MEMORY_SAMPLE_INTERVAL_SECONDS = 0.05
 QUEUE_GRACE_SECONDS = 1.0
 
@@ -45,6 +53,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--solver",
         choices=[*SOLVERS, "all"],
         default="all",
+    )
+    parser.add_argument(
+        "--maxsat-backend",
+        choices=MAXSAT_BACKENDS,
+        default="uwrmaxsat",
+        help="UWrMaxSAT is required by default; RC2 is development-only",
+    )
+    parser.add_argument(
+        "--uwrmaxsat-bin",
+        help="pinned UWrMaxSAT executable; otherwise use UWRMAXSAT_BIN/local/PATH",
+    )
+    parser.add_argument(
+        "--uwrmaxsat-sha256",
+        help="optional expected SHA-256 of the pinned UWrMaxSAT executable",
+    )
+    parser.add_argument(
+        "--sat-backend",
+        choices=SAT_BACKENDS,
+        default="cadical",
+        help="CaDiCaL 1.5.3 is required by default; Glucose is development-only",
     )
     parser.add_argument(
         "--precedence-mode",
@@ -162,6 +190,39 @@ def collect_instances(instance: str | None, data_dir: str) -> list[Path]:
     return instances
 
 
+def require_solver_environment(
+    solvers: list[str],
+    *,
+    maxsat_backend: str,
+    uwrmaxsat_bin: str | None,
+    uwrmaxsat_sha256: str | None,
+    sat_backend: str,
+) -> None:
+    """Validate all requested production backends before the first run."""
+
+    if "maxsat" in solvers and maxsat_backend == "uwrmaxsat":
+        binary = resolve_uwrmaxsat_binary(uwrmaxsat_bin)
+        if binary is None:
+            raise FileNotFoundError(UWRMAXSAT_NOT_FOUND_MESSAGE)
+        actual_sha256 = executable_sha256(binary)
+        expected_sha256 = (uwrmaxsat_sha256 or "").strip().lower()
+        if expected_sha256 and (
+            len(expected_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in expected_sha256)
+        ):
+            raise ValueError(
+                "--uwrmaxsat-sha256 must be a 64-character hex digest"
+            )
+        if expected_sha256 and actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                "UWrMaxSAT executable SHA-256 mismatch: "
+                f"expected {expected_sha256}, got {actual_sha256}"
+            )
+
+    if any(solver in {"incremental", "multiple"} for solver in solvers):
+        require_sat_backend(sat_backend)
+
+
 def status_to_sat_result(status: str | None) -> str:
     normalized = (status or "ERROR").upper()
     if normalized in {"OPTIMAL", "SAT", "SATISFIABLE", "OPTIMUM FOUND"}:
@@ -249,9 +310,17 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
             artifacts.precedence_unique_suffix_cuts
         ),
         "enabled_constraints": " | ".join(artifacts.enabled_constraints),
+        "solver_backend": getattr(solver_object, "solver_backend", ""),
+        "solver_version": getattr(solver_object, "solver_version", ""),
+        "solver_binary": getattr(solver_object, "solver_binary", ""),
+        "solver_command": getattr(solver_object, "solver_command", ""),
         "maxsat_backend_preference": getattr(solver_object, "backend", ""),
+        "sat_backend_preference": getattr(solver_object, "solver_name", ""),
         "resolved_uwrmaxsat_bin": str(
             getattr(solver_object, "resolved_uwrmaxsat_bin", "") or ""
+        ),
+        "solver_binary_sha256": getattr(
+            solver_object, "uwrmaxsat_binary_sha256", ""
         ),
     }
 
@@ -273,8 +342,12 @@ def _result_payload(
         "solver": solver_name,
         "solver_backend": result.get("solver_backend", result.get("solver", "")),
         "solver_binary": result.get("solver_binary", ""),
+        "solver_binary_sha256": result.get("solver_binary_sha256", ""),
+        "solver_version": result.get("solver_version", ""),
+        "solver_command": result.get("solver_command", ""),
         "solver_message": result.get("solver_message", ""),
         "maxsat_backend_preference": result.get("maxsat_backend_preference", ""),
+        "sat_backend_preference": result.get("sat_backend_preference", ""),
         "precedence_mode": result.get(
             "precedence_mode",
             legacy_precedence_mode(precedence_encoding, precedence_graph),
@@ -330,17 +403,34 @@ def _worker(
     precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
+    maxsat_backend: str,
+    uwrmaxsat_bin: str | None,
+    uwrmaxsat_sha256: str | None,
+    sat_backend: str,
+    solver_timeout: float,
     verbose: bool,
     output: mp.Queue[Any],
 ) -> None:
     started = time.perf_counter()
     try:
+        solver_kwargs: dict[str, Any] = {
+            "instance_or_path": instance_path,
+            "precedence_encoding": precedence_encoding,
+            "precedence_graph": precedence_graph,
+            "encoding_variant": encoding_variant,
+            "domain_mode": domain_mode,
+        }
+        if solver_name == "maxsat":
+            solver_kwargs.update(
+                backend=maxsat_backend,
+                uwrmaxsat_bin=uwrmaxsat_bin,
+                uwrmaxsat_sha256=uwrmaxsat_sha256,
+                uwrmaxsat_timeout=solver_timeout,
+            )
+        else:
+            solver_kwargs["solver_name"] = sat_backend
         solver_object = _solver_class(solver_name)(
-            instance_or_path=instance_path,
-            precedence_encoding=precedence_encoding,
-            precedence_graph=precedence_graph,
-            encoding_variant=encoding_variant,
-            domain_mode=domain_mode,
+            **solver_kwargs
         )
         output.put(_formula_metadata(solver_name, solver_object))
         result = solver_object.solve(verbose=verbose)
@@ -374,6 +464,12 @@ def _worker(
                 "domain_mode": domain_mode,
                 "runtime_seconds": round(time.perf_counter() - started, 6),
                 "objective": "internal_idle_slot_range_pstar",
+                "maxsat_backend_preference": (
+                    maxsat_backend if solver_name == "maxsat" else ""
+                ),
+                "sat_backend_preference": (
+                    sat_backend if solver_name != "maxsat" else ""
+                ),
                 "validation_errors": "",
                 "error_type": type(exc).__name__,
                 "error_message": str(exc),
@@ -465,6 +561,8 @@ def _terminal_payload(
     precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
+    maxsat_backend: str,
+    sat_backend: str,
     runtime_seconds: float,
 ) -> dict[str, Any]:
     return {
@@ -483,6 +581,10 @@ def _terminal_payload(
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
         "objective": "internal_idle_slot_range_pstar",
+        "maxsat_backend_preference": (
+            maxsat_backend if solver_name == "maxsat" else ""
+        ),
+        "sat_backend_preference": sat_backend if solver_name != "maxsat" else "",
         "validation_errors": "",
         "error_type": "",
         "error_message": "",
@@ -496,6 +598,10 @@ def run_with_timeout(
     precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
+    maxsat_backend: str,
+    uwrmaxsat_bin: str | None,
+    uwrmaxsat_sha256: str | None,
+    sat_backend: str,
     timeout_seconds: float,
     verbose: bool,
 ) -> dict[str, Any]:
@@ -510,6 +616,11 @@ def run_with_timeout(
             precedence_graph,
             encoding_variant,
             domain_mode,
+            maxsat_backend,
+            uwrmaxsat_bin,
+            uwrmaxsat_sha256,
+            sat_backend,
+            timeout_seconds,
             verbose,
             output,
         ),
@@ -542,6 +653,8 @@ def run_with_timeout(
             precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
+            maxsat_backend=maxsat_backend,
+            sat_backend=sat_backend,
             runtime_seconds=time.perf_counter() - started,
         )
     else:
@@ -559,6 +672,8 @@ def run_with_timeout(
                 precedence_graph=precedence_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
+                maxsat_backend=maxsat_backend,
+                sat_backend=sat_backend,
                 runtime_seconds=time.perf_counter() - started,
             )
             result["error_type"] = "NoWorkerPayload"
@@ -595,8 +710,12 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "solver",
         "solver_backend",
         "solver_binary",
+        "solver_binary_sha256",
+        "solver_version",
+        "solver_command",
         "solver_message",
         "maxsat_backend_preference",
+        "sat_backend_preference",
         "resolved_uwrmaxsat_bin",
         "precedence_mode",
         "precedence_encoding",
@@ -736,6 +855,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     solvers = selected(args.solver, SOLVERS)
+    try:
+        require_solver_environment(
+            solvers,
+            maxsat_backend=args.maxsat_backend,
+            uwrmaxsat_bin=args.uwrmaxsat_bin,
+            uwrmaxsat_sha256=args.uwrmaxsat_sha256,
+            sat_backend=args.sat_backend,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"ERROR: {exc}")
+        return 2
     precedence_cells = precedence_configurations(args)
     variants = selected(args.encoding_variant, VARIANTS)
     domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
@@ -751,6 +881,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
     print(f"Domain mode(s): {', '.join(domain_modes)}")
+    if "maxsat" in solvers:
+        print(f"MaxSAT backend: {args.maxsat_backend}")
+    if any(solver in {"incremental", "multiple"} for solver in solvers):
+        print(f"SAT backend: {args.sat_backend}")
     print(
         "Precedence P×G cell(s): "
         + ", ".join(
@@ -778,6 +912,10 @@ def main(argv: list[str] | None = None) -> int:
                             precedence_graph,
                             variant,
                             domain_mode,
+                            args.maxsat_backend,
+                            args.uwrmaxsat_bin,
+                            args.uwrmaxsat_sha256,
+                            args.sat_backend,
                             args.timeout,
                             args.verbose,
                         )

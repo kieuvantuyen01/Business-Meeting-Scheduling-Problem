@@ -1,7 +1,6 @@
 import sys
 import argparse
 from pysat.formula import CNF, WCNF
-from pysat.examples.rc2 import RC2
 from pysat.card import CardEnc, EncType
 from math import inf, sqrt
 import subprocess
@@ -10,6 +9,8 @@ import os
 import glob
 import csv
 import threading
+
+from MaxSAT_Solver import resolve_uwrmaxsat_binary
 
 try:
     import psutil
@@ -848,18 +849,14 @@ for input_file in input_files:
     )
 
     def solve_maxsat():
-        local_bin = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'uwrmaxsat', 'build', 'release', 'bin', 'uwrmaxsat'
-        )
-        UWRMAXSAT_BIN = os.environ.get('UWRMAXSAT_BIN', local_bin)
+        uwrmaxsat_bin = resolve_uwrmaxsat_binary()
         WCNF_FILE = 'maxHS_idle_range_pstar.wcnf'
         TIMEOUT = 3600  # 1 hour
 
-        if os.path.isfile(UWRMAXSAT_BIN) and os.access(UWRMAXSAT_BIN, os.X_OK):
+        if uwrmaxsat_bin is not None:
             try:
                 result = subprocess.run(
-                    [UWRMAXSAT_BIN, '-m', WCNF_FILE],
+                    [str(uwrmaxsat_bin), '-m', WCNF_FILE],
                     capture_output=True, text=True, timeout=TIMEOUT
                 )
                 output = result.stdout
@@ -893,13 +890,11 @@ for input_file in input_files:
                 print(f"TIMEOUT: UWrMaxSAT timeout after {TIMEOUT} seconds")
                 return None, None, 'UWrMaxSAT', 'TIMEOUT'
 
-        # Portable fallback: same WCNF encoding, solved by PySAT RC2.
-        print('UWrMaxSAT binary not found; using PySAT RC2 fallback.')
-        with RC2(wcnf) as solver:
-            model = solver.compute()
-            if model is None:
-                return None, None, 'RC2', 'UNSAT'
-            return model, solver.cost, 'RC2', 'OPTIMAL'
+        print(
+            'ERROR: required UWrMaxSAT binary not found; '
+            'automatic RC2 fallback is disabled.'
+        )
+        return None, None, 'UWrMaxSAT', 'ERROR'
 
     # Write the WCNF to a file
     wcnf.to_file('maxHS_idle_range_pstar.wcnf')

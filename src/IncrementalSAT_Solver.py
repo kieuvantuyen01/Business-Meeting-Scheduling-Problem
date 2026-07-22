@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from importlib import import_module
 from pathlib import Path
 from typing import Any
 
 from pysat.card import ITotalizer
 
 from B2B_Instance import B2BInstance, B2BSATModel, B2BSolutionStats, read_instance
+from SAT_Backend import (
+    create_sat_solver,
+    normalize_sat_backend,
+    sat_backend_label,
+    sat_backend_version,
+)
 
 
 def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
@@ -18,15 +23,9 @@ def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
 
 
 def _new_solver(clauses: list[list[int]], preferred: str = "cadical"):
-    """Create a SAT solver, falling back to Glucose3 when needed."""
+    """Create exactly the requested SAT backend without fallback."""
 
-    solvers = import_module("pysat.solvers")
-    if preferred == "glucose":
-        return solvers.Glucose3(bootstrap_with=clauses)
-    try:
-        return solvers.Cadical153(bootstrap_with=clauses)
-    except Exception:
-        return solvers.Glucose3(bootstrap_with=clauses)
+    return create_sat_solver(clauses, preferred)
 
 
 class B2BIncrementalSATSolver:
@@ -64,7 +63,9 @@ class B2BIncrementalSATSolver:
             domain_mode=domain_mode,
         )
         self.artifacts = self.model.build_base_cnf()
-        self.solver_name = solver_name
+        self.solver_name = normalize_sat_backend(solver_name)
+        self.solver_backend = sat_backend_label(self.solver_name)
+        self.solver_version = sat_backend_version(self.solver_name)
 
     def _pack_result(
         self,
@@ -78,6 +79,9 @@ class B2BIncrementalSATSolver:
         return {
             "status": status,
             "solver": "IncrementalSAT",
+            "solver_backend": self.solver_backend,
+            "solver_version": self.solver_version,
+            "sat_backend_preference": self.solver_name,
             "precedence_mode": self.artifacts.precedence_mode,
             "precedence_encoding": self.artifacts.precedence_encoding,
             "precedence_graph": self.artifacts.precedence_graph,

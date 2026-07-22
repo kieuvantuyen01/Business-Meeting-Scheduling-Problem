@@ -22,8 +22,8 @@ Lexicographic `IdleSum` objective.
 
 - `src/B2B_Instance.py`: parser, exact domain reduction, compact break encoding,
   hard constraints, objective literals, decoding, and independent validation.
-- `src/MaxSAT_Solver.py`: unit-weight partial MaxSAT optimization with
-  UWrMaxSAT and an explicit RC2 development backend.
+- `src/MaxSAT_Solver.py`: unit-weight partial MaxSAT optimization with required
+  UWrMaxSAT production execution and an explicit RC2 development backend.
 - `src/Multiple_SAT.py`: fresh-SAT binary-search optimization.
 - `src/IncrementalSAT_Solver.py`: incremental-SAT optimization with a totalizer.
 - `src/Main.py`: timeout-controlled benchmark runner and CSV exporter.
@@ -98,6 +98,9 @@ Run only MaxSAT with the most compact encoding:
 python3 src/Main.py \
   --data-dir data_table08_prec \
   --solver maxsat \
+  --maxsat-backend uwrmaxsat \
+  --uwrmaxsat-bin /absolute/path/to/uwrmaxsat \
+  --uwrmaxsat-sha256 <expected-64-character-sha256> \
   --precedence-encoding sparse_suffix \
   --precedence-graph distance_closure \
   --encoding-variant imp12+ \
@@ -105,6 +108,14 @@ python3 src/Main.py \
   --timeout 7200 \
   --csv output/table8_results.csv
 ```
+
+`Main.py` defaults to UWrMaxSAT for MaxSAT and CaDiCaL 1.5.3 for both SAT
+methods. It validates every requested backend before the first benchmark run.
+Missing or failing production backends are errors: there is no automatic
+UWrMaxSAT-to-RC2 or CaDiCaL-to-Glucose substitution. The detailed CSV records
+the selected backend, version, executable path, UWrMaxSAT binary SHA-256, and
+command line. `--maxsat-backend rc2` and `--sat-backend glucose` remain explicit
+development-only choices and must not be mixed with production results.
 
 Build and inspect one CNF/WCNF directly:
 

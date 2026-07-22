@@ -235,6 +235,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                         precedence_graph=precedence_graph,
                         encoding_variant=encoding_variant,
                         domain_mode=domain_mode,
+                        backend="rc2",
                     ).solve()
                     results[domain_mode] = result
                     with self.subTest(
@@ -264,6 +265,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     precedence_mode="staircase",
                     encoding_variant="imp12+",
                     domain_mode=domain_mode,
+                    backend="rc2",
                 ),
                 B2BMultipleSATSolver(
                     inst,
@@ -298,6 +300,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                 precedence_mode="traditional",
                 encoding_variant="basic",
                 domain_mode=domain_mode,
+                backend="rc2",
             ).solve()
             with self.subTest(domain=domain_mode):
                 self.assertEqual(result["status"], "UNSAT")
@@ -313,6 +316,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     precedence_graph=precedence_graph,
                     encoding_variant="imp12+",
                     domain_mode=domain_mode,
+                    backend="rc2",
                 ).solve()
                 with self.subTest(
                     case="distance-two-chain",
@@ -333,6 +337,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     precedence_graph=precedence_graph,
                     encoding_variant="basic",
                     domain_mode=domain_mode,
+                    backend="rc2",
                 ).solve()
                 with self.subTest(
                     case="cycle",
@@ -352,6 +357,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                 precedence_mode="staircase",
                 encoding_variant="imp12+",
                 domain_mode=domain_mode,
+                backend="rc2",
             ).solve()
             with self.subTest(domain=domain_mode):
                 self.assertEqual(result["status"], "UNSAT")
@@ -377,6 +383,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                         precedence_graph=precedence_graph,
                         encoding_variant="basic",
                         domain_mode=domain_mode,
+                        backend="rc2",
                     ).solve()
                     with self.subTest(
                         seed=seed,
@@ -571,6 +578,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     precedence_graph=precedence_graph,
                     encoding_variant="imp12+",
                     domain_mode="reduced",
+                    backend="rc2",
                 ),
                 B2BMultipleSATSolver(
                     inst,

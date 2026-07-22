@@ -17,6 +17,8 @@ from Main import parse_args, precedence_configurations, write_aggregate_csv
 class MainPrecedenceFactorialTests(unittest.TestCase):
     def test_default_and_explicit_cli_generate_the_expected_cells(self) -> None:
         default_args = parse_args([])
+        self.assertEqual(default_args.maxsat_backend, "uwrmaxsat")
+        self.assertEqual(default_args.sat_backend, "cadical")
         self.assertEqual(
             precedence_configurations(default_args),
             [
