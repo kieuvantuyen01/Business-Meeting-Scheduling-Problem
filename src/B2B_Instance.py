@@ -133,6 +133,14 @@ class B2BModelArtifacts:
     sorted_hole_lits_by_participant: list[list[int]]
     n_vars: int
     n_clauses: int
+    n_primary_variables: int
+    n_auxiliary_variables: int
+    n_hard_literals: int
+    max_hard_clause_length: int
+    n_unit_hard_clauses: int
+    n_binary_hard_clauses: int
+    n_ternary_hard_clauses: int
+    n_long_hard_clauses: int
     encoding_variant: str
     precedence_mode: str
     precedence_encoding: str
@@ -1001,6 +1009,10 @@ class B2BSATModel:
         threshold_lits = self._add_span_break_thresholds(cnf)
         gap_lits = self._add_gap_objective(cnf, threshold_lits)
 
+        n_vars = max(self.vpool.top, cnf.nv)
+        n_primary_variables = len(self._schedule_vars)
+        clause_lengths = [len(clause) for clause in cnf.clauses]
+
         self._artifacts = B2BModelArtifacts(
             cnf=cnf,
             objective_lits=gap_lits,
@@ -1009,8 +1021,16 @@ class B2BSATModel:
             objective_gap_lits=gap_lits,
             hole_lits_by_participant=[[] for _ in range(self.inst.n_business)],
             sorted_hole_lits_by_participant=threshold_lits,
-            n_vars=max(self.vpool.top, cnf.nv),
+            n_vars=n_vars,
             n_clauses=len(cnf.clauses),
+            n_primary_variables=n_primary_variables,
+            n_auxiliary_variables=n_vars - n_primary_variables,
+            n_hard_literals=sum(clause_lengths),
+            max_hard_clause_length=max(clause_lengths, default=0),
+            n_unit_hard_clauses=sum(length == 1 for length in clause_lengths),
+            n_binary_hard_clauses=sum(length == 2 for length in clause_lengths),
+            n_ternary_hard_clauses=sum(length == 3 for length in clause_lengths),
+            n_long_hard_clauses=sum(length >= 4 for length in clause_lengths),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
             precedence_encoding=self.precedence_encoding,

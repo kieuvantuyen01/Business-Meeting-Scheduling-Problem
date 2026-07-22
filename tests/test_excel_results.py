@@ -29,17 +29,73 @@ class ExcelResultsTests(unittest.TestCase):
             maxsat_backend="uwrmaxsat",
             sat_backend="cadical",
         )
-        self.assertEqual(metadata["configuration_label"], "R-SS-DC-UW")
+        self.assertEqual(
+            metadata["configuration_label"],
+            "R-SS-DC-ST-IRP-UW-IC12P",
+        )
         self.assertEqual(
             metadata["configuration_id"],
-            "cfg1__d-r__e-ss__g-dc__s-uw__be-uwrmaxsat__b-st__o-irp__i-ic12pc",
+            "cfg2__m-reduced__p-sparse_suffix__g-distance_closure__"
+            "b-span_threshold__o-idle_range_pstar__s-uwrmaxsat__"
+            "i-imp12plus__backend-uwrmaxsat",
         )
         self.assertEqual(metadata["optimization_engine"], "UWrMaxSAT")
+        self.assertEqual(
+            [metadata[f"factor_{factor}"] for factor in "mpgbosi"],
+            [
+                "Reduced",
+                "SparseSuffix",
+                "DistanceClosure-E*",
+                "SpanThreshold",
+                "IdleRangePstar",
+                "UWrMaxSAT",
+                "IC12+",
+            ],
+        )
+
+    def test_display_labels_and_machine_keys_are_unique_for_every_cli_tuple(self) -> None:
+        labels: set[str] = set()
+        identifiers: set[str] = set()
+        expected = 0
+        for domain_mode in ("full", "reduced"):
+            for precedence_encoding in ("pairwise", "sparse_suffix"):
+                for precedence_graph in ("direct", "distance_closure"):
+                    for encoding_variant in (
+                        "basic",
+                        "imp1",
+                        "imp2",
+                        "imp12",
+                        "imp12+",
+                    ):
+                        engine_backends = (
+                            ("maxsat", "uwrmaxsat", "cadical"),
+                            ("maxsat", "rc2", "cadical"),
+                            ("multiple", "uwrmaxsat", "cadical"),
+                            ("multiple", "uwrmaxsat", "glucose"),
+                            ("incremental", "uwrmaxsat", "cadical"),
+                            ("incremental", "uwrmaxsat", "glucose"),
+                        )
+                        for solver_name, maxsat_backend, sat_backend in engine_backends:
+                            metadata = configuration_metadata(
+                                solver_name=solver_name,
+                                precedence_encoding=precedence_encoding,
+                                precedence_graph=precedence_graph,
+                                encoding_variant=encoding_variant,
+                                domain_mode=domain_mode,
+                                maxsat_backend=maxsat_backend,
+                                sat_backend=sat_backend,
+                            )
+                            expected += 1
+                            labels.add(metadata["configuration_label"])
+                            identifiers.add(metadata["configuration_id"])
+
+        self.assertEqual(len(labels), expected)
+        self.assertEqual(len(identifiers), expected)
 
     def test_writer_creates_one_valid_workbook_with_required_metrics(self) -> None:
         result = {
             "instance": "micro.prec15",
-            "configuration_label": "R-SS-DC-UW",
+            "configuration_label": "R-SS-DC-ST-IRP-UW-IC12P",
             "configuration_id": "cfg1__micro",
             "domain_mode": "reduced",
             "precedence_encoding": "sparse_suffix",
@@ -50,6 +106,8 @@ class ExcelResultsTests(unittest.TestCase):
             "idle_encoding": "span_threshold",
             "objective": "internal_idle_slot_range_pstar",
             "n_vars": 123,
+            "n_primary_variables": 45,
+            "n_auxiliary_variables": 78,
             "n_total_clauses": 457,
             "n_hard_clauses": 450,
             "n_soft_clauses": 7,
@@ -111,6 +169,23 @@ class ExcelResultsTests(unittest.TestCase):
             )
             variable_cell = cells_by_ref[f"{self._column_name(variable_column)}2"]
             self.assertEqual(variable_cell.find("x:v", SPREADSHEET_NS).text, "123")
+            required_metric_columns = {
+                "instance_sha256",
+                "configuration_key",
+                "factor_m",
+                "factor_i",
+                "n_primary_variables",
+                "n_auxiliary_variables",
+                "n_total_literals",
+                "max_hard_clause_length",
+                "optimizer_added_clauses_peak",
+                "input_parsing_seconds",
+                "model_construction_seconds",
+                "runner_command",
+            }
+            self.assertTrue(
+                required_metric_columns.issubset(set(header_values))
+            )
 
     def test_safe_workbook_name_preserves_normal_instance_names(self) -> None:
         self.assertEqual(

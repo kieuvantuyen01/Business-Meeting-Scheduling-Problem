@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pysat.card import ITotalizer
 
@@ -66,6 +66,12 @@ class B2BIncrementalSATSolver:
         self.solver_name = normalize_sat_backend(solver_name)
         self.solver_backend = sat_backend_label(self.solver_name)
         self.solver_version = sat_backend_version(self.solver_name)
+        self.n_optimizer_calls = 0
+        self.n_bound_encodings = 0
+        self.optimizer_added_variables_peak = 0
+        self.optimizer_added_clauses_peak = 0
+        self.optimizer_added_literals_peak = 0
+        self.optimizer_added_clauses_cumulative = 0
 
     def _pack_result(
         self,
@@ -153,6 +159,16 @@ class B2BIncrementalSATSolver:
                 self.artifacts.precedence_unique_suffix_cuts
             ),
             "enabled_constraints": self.artifacts.enabled_constraints,
+            "n_optimizer_calls": self.n_optimizer_calls,
+            "n_bound_encodings": self.n_bound_encodings,
+            "optimizer_added_variables_peak": (
+                self.optimizer_added_variables_peak
+            ),
+            "optimizer_added_clauses_peak": self.optimizer_added_clauses_peak,
+            "optimizer_added_literals_peak": self.optimizer_added_literals_peak,
+            "optimizer_added_clauses_cumulative": (
+                self.optimizer_added_clauses_cumulative
+            ),
         }
 
     def _evaluate_sat_model(
@@ -173,8 +189,13 @@ class B2BIncrementalSATSolver:
         )
         return assignment, stats, checks
 
-    def solve(self, verbose: bool = False) -> dict[str, Any]:
+    def solve(
+        self,
+        verbose: bool = False,
+        incumbent_callback: Callable[[int], None] | None = None,
+    ) -> dict[str, Any]:
         with _new_solver(self.artifacts.cnf.clauses, self.solver_name) as solver:
+            self.n_optimizer_calls += 1
             if not solver.solve():
                 return self._pack_result("UNSAT", None, None)
 
@@ -186,6 +207,8 @@ class B2BIncrementalSATSolver:
                 return self._pack_result("ERROR", best_assignment, best_stats, checks)
 
             best_objective = best_stats.objective_gap
+            if incumbent_callback is not None:
+                incumbent_callback(best_objective)
             if verbose:
                 print(f"[IncrementalSAT] initial IdleRange(P*)={best_objective}")
             if best_objective == 0:
@@ -210,12 +233,25 @@ class B2BIncrementalSATSolver:
                 ubound=best_objective,
                 top_id=self.artifacts.n_vars,
             ) as totalizer:
+                self.n_bound_encodings = 1
+                self.optimizer_added_variables_peak = max(
+                    0,
+                    totalizer.top_id - self.artifacts.n_vars,
+                )
+                self.optimizer_added_clauses_peak = len(totalizer.cnf.clauses)
+                self.optimizer_added_literals_peak = sum(
+                    len(clause) for clause in totalizer.cnf.clauses
+                )
+                self.optimizer_added_clauses_cumulative = len(
+                    totalizer.cnf.clauses
+                )
                 solver.append_formula(totalizer.cnf.clauses)
                 low, high = 0, best_objective - 1
 
                 while low <= high:
                     bound = (low + high) // 2
                     # rhs[bound] means at least bound+1 objective literals are true.
+                    self.n_optimizer_calls += 1
                     satisfiable = solver.solve(assumptions=[-totalizer.rhs[bound]])
                     if verbose:
                         print(
@@ -241,6 +277,8 @@ class B2BIncrementalSATSolver:
                             )
                         best_assignment = candidate_assignment
                         best_stats = candidate_stats
+                        if incumbent_callback is not None:
+                            incumbent_callback(best_stats.objective_gap)
                         high = bound - 1
                     else:
                         low = bound + 1

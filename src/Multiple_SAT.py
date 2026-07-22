@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pysat.card import CardEnc, EncType
 
@@ -66,6 +66,12 @@ class B2BMultipleSATSolver:
         self.solver_name = normalize_sat_backend(solver_name)
         self.solver_backend = sat_backend_label(self.solver_name)
         self.solver_version = sat_backend_version(self.solver_name)
+        self.n_optimizer_calls = 0
+        self.n_bound_encodings = 0
+        self.optimizer_added_variables_peak = 0
+        self.optimizer_added_clauses_peak = 0
+        self.optimizer_added_literals_peak = 0
+        self.optimizer_added_clauses_cumulative = 0
 
     def _pack_result(
         self,
@@ -153,6 +159,16 @@ class B2BMultipleSATSolver:
                 self.artifacts.precedence_unique_suffix_cuts
             ),
             "enabled_constraints": self.artifacts.enabled_constraints,
+            "n_optimizer_calls": self.n_optimizer_calls,
+            "n_bound_encodings": self.n_bound_encodings,
+            "optimizer_added_variables_peak": (
+                self.optimizer_added_variables_peak
+            ),
+            "optimizer_added_clauses_peak": self.optimizer_added_clauses_peak,
+            "optimizer_added_literals_peak": self.optimizer_added_literals_peak,
+            "optimizer_added_clauses_cumulative": (
+                self.optimizer_added_clauses_cumulative
+            ),
         }
 
     def _evaluate_sat_model(
@@ -176,21 +192,47 @@ class B2BMultipleSATSolver:
     def _bound_clauses(self, bound: int) -> list[list[int]]:
         lits = self.artifacts.objective_lits
         if bound < 0:
-            return [[]]
-        if not lits or bound >= len(lits):
-            return []
-        if bound == 0:
-            return [[-lit] for lit in lits]
-        encoding = CardEnc.atmost(
-            lits=lits,
-            bound=bound,
-            top_id=self.artifacts.n_vars,
-            encoding=EncType.seqcounter,
-        )
-        return encoding.clauses
+            clauses = [[]]
+            top_id = self.artifacts.n_vars
+        elif not lits or bound >= len(lits):
+            clauses = []
+            top_id = self.artifacts.n_vars
+        elif bound == 0:
+            clauses = [[-lit] for lit in lits]
+            top_id = self.artifacts.n_vars
+        else:
+            encoding = CardEnc.atmost(
+                lits=lits,
+                bound=bound,
+                top_id=self.artifacts.n_vars,
+                encoding=EncType.seqcounter,
+            )
+            clauses = encoding.clauses
+            top_id = encoding.nv
 
-    def solve(self, verbose: bool = False) -> dict[str, Any]:
+        self.n_bound_encodings += 1
+        self.optimizer_added_variables_peak = max(
+            self.optimizer_added_variables_peak,
+            max(0, top_id - self.artifacts.n_vars),
+        )
+        self.optimizer_added_clauses_peak = max(
+            self.optimizer_added_clauses_peak,
+            len(clauses),
+        )
+        self.optimizer_added_literals_peak = max(
+            self.optimizer_added_literals_peak,
+            sum(len(clause) for clause in clauses),
+        )
+        self.optimizer_added_clauses_cumulative += len(clauses)
+        return clauses
+
+    def solve(
+        self,
+        verbose: bool = False,
+        incumbent_callback: Callable[[int], None] | None = None,
+    ) -> dict[str, Any]:
         with _new_solver(self.artifacts.cnf.clauses, self.solver_name) as solver:
+            self.n_optimizer_calls += 1
             if not solver.solve():
                 return self._pack_result("UNSAT", None, None)
             initial_model = solver.get_model()
@@ -200,6 +242,8 @@ class B2BMultipleSATSolver:
             return self._pack_result("ERROR", best_assignment, best_stats, checks)
 
         best_objective = best_stats.objective_gap
+        if incumbent_callback is not None:
+            incumbent_callback(best_objective)
         if verbose:
             print(f"[MultipleSAT] initial IdleRange(P*)={best_objective}")
         if best_objective == 0:
@@ -215,6 +259,7 @@ class B2BMultipleSATSolver:
             bound = (low + high) // 2
             with _new_solver(self.artifacts.cnf.clauses, self.solver_name) as solver:
                 solver.append_formula(self._bound_clauses(bound))
+                self.n_optimizer_calls += 1
                 satisfiable = solver.solve()
                 if verbose:
                     print(
@@ -240,6 +285,8 @@ class B2BMultipleSATSolver:
                         )
                     best_assignment = candidate_assignment
                     best_stats = candidate_stats
+                    if incumbent_callback is not None:
+                        incumbent_callback(best_stats.objective_gap)
                     high = bound - 1
                 else:
                     low = bound + 1

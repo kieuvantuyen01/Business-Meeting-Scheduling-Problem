@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import queue
 import subprocess
 import sys
 import tempfile
@@ -16,8 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 import SAT_Backend
+from IncrementalSAT_Solver import B2BIncrementalSATSolver
 from MaxSAT_Solver import B2BMaxSATSolver, resolve_uwrmaxsat_binary
-from Main import parse_args, require_solver_environment
+from Main import _drain_queue, parse_args, require_solver_environment
+from Multiple_SAT import B2BMultipleSATSolver
 
 
 INSTANCE = PROJECT_ROOT / "data_table03_origin" / "tic-12.original.dzn"
@@ -161,6 +164,23 @@ class SATBackendTests(unittest.TestCase):
         SAT_Backend.require_sat_backend("cadical")
         self.assertEqual(SAT_Backend.sat_backend_version("cadical"), "1.5.3")
 
+    def test_sat_optimizers_report_incumbents_and_formula_overhead(self) -> None:
+        for solver_class in (B2BMultipleSATSolver, B2BIncrementalSATSolver):
+            incumbents: list[int] = []
+            result = solver_class(INSTANCE).solve(
+                incumbent_callback=incumbents.append
+            )
+            with self.subTest(solver=solver_class.__name__):
+                self.assertEqual(result["status"], "OPTIMAL")
+                self.assertTrue(incumbents)
+                self.assertEqual(min(incumbents), result["objective_value"])
+                self.assertGreaterEqual(result["n_optimizer_calls"], 1)
+                self.assertGreaterEqual(result["n_bound_encodings"], 0)
+                self.assertGreaterEqual(
+                    result["optimizer_added_clauses_peak"],
+                    0,
+                )
+
 
 class RunnerBackendTests(unittest.TestCase):
     def test_production_backend_defaults_are_strict(self) -> None:
@@ -178,6 +198,16 @@ class RunnerBackendTests(unittest.TestCase):
                     uwrmaxsat_sha256=None,
                     sat_backend="cadical",
                 )
+
+    def test_runner_retains_the_best_sat_incumbent_message(self) -> None:
+        output: queue.Queue[dict[str, object]] = queue.Queue()
+        output.put({"message_type": "incumbent", "best_value": 5})
+        output.put({"message_type": "incumbent", "best_value": 2})
+        output.put({"message_type": "incumbent", "best_value": 4})
+        metadata: dict[str, object] = {}
+
+        self.assertIsNone(_drain_queue(output, metadata, None))
+        self.assertEqual(metadata["incumbent_best_value"], 2)
 
 
 if __name__ == "__main__":

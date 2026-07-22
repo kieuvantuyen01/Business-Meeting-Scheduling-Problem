@@ -358,6 +358,12 @@ class B2BMaxSATSolver:
                 self.artifacts.precedence_unique_suffix_cuts
             ),
             "enabled_constraints": self.artifacts.enabled_constraints,
+            "n_optimizer_calls": 1,
+            "n_bound_encodings": 0,
+            "optimizer_added_variables_peak": 0,
+            "optimizer_added_clauses_peak": 0,
+            "optimizer_added_literals_peak": 0,
+            "optimizer_added_clauses_cumulative": 0,
         }
 
     def _validate_model(

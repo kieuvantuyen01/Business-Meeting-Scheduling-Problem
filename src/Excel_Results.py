@@ -17,8 +17,8 @@ RUNTIME_SCOPE = (
     "independent validation; excludes worker-process startup and result-file export"
 )
 FORMULA_SCOPE = (
-    "shared base CNF; for MaxSAT, n_total_clauses additionally includes one "
-    "unit soft clause per objective literal"
+    "shared base CNF plus unit soft objective clauses for MaxSAT; SAT "
+    "bound/totalizer overhead is reported separately in optimizer_added_* fields"
 )
 
 
@@ -30,8 +30,33 @@ class ResultColumn:
 
 RESULT_COLUMNS = (
     ResultColumn("instance"),
+    ResultColumn("instance_content_id"),
+    ResultColumn("instance_family"),
     ResultColumn("configuration_label"),
+    ResultColumn("factor_m"),
+    ResultColumn("factor_p"),
+    ResultColumn("factor_g"),
+    ResultColumn("factor_b"),
+    ResultColumn("factor_o"),
+    ResultColumn("factor_s"),
+    ResultColumn("factor_i"),
+    ResultColumn("status"),
+    ResultColumn("sat_result"),
+    ResultColumn("best_value", "integer"),
+    ResultColumn("proven_optimum", "integer"),
+    ResultColumn("runtime_seconds", "seconds"),
+    ResultColumn("runtime_censored", "boolean"),
+    ResultColumn("peak_memory_mb", "decimal"),
+    ResultColumn("n_vars", "integer"),
+    ResultColumn("n_hard_clauses", "integer"),
+    ResultColumn("n_soft_clauses", "integer"),
+    ResultColumn("n_total_clauses", "integer"),
+    ResultColumn("n_primary_variables", "integer"),
+    ResultColumn("n_auxiliary_variables", "integer"),
+    ResultColumn("n_total_literals", "integer"),
+    ResultColumn("max_hard_clause_length", "integer"),
     ResultColumn("configuration_id"),
+    ResultColumn("configuration_key"),
     ResultColumn("domain_mode"),
     ResultColumn("precedence_encoding"),
     ResultColumn("precedence_graph"),
@@ -41,21 +66,73 @@ RESULT_COLUMNS = (
     ResultColumn("encoding_variant"),
     ResultColumn("idle_encoding"),
     ResultColumn("objective"),
-    ResultColumn("n_vars", "integer"),
-    ResultColumn("n_total_clauses", "integer"),
-    ResultColumn("n_hard_clauses", "integer"),
-    ResultColumn("n_soft_clauses", "integer"),
+    ResultColumn("objective_code"),
+    ResultColumn("implied_constraints_code"),
+    ResultColumn("n_hard_literals", "integer"),
+    ResultColumn("n_soft_literals", "integer"),
+    ResultColumn("max_soft_clause_length", "integer"),
+    ResultColumn("n_unit_hard_clauses", "integer"),
+    ResultColumn("n_binary_hard_clauses", "integer"),
+    ResultColumn("n_ternary_hard_clauses", "integer"),
+    ResultColumn("n_long_hard_clauses", "integer"),
+    ResultColumn("soft_clause_weight", "integer"),
+    ResultColumn("soft_weight_sum", "integer"),
+    ResultColumn("n_objective_lits", "integer"),
+    ResultColumn("n_optimizer_calls", "integer"),
+    ResultColumn("n_bound_encodings", "integer"),
+    ResultColumn("optimizer_added_variables_peak", "integer"),
+    ResultColumn("optimizer_added_clauses_peak", "integer"),
+    ResultColumn("optimizer_added_literals_peak", "integer"),
+    ResultColumn("optimizer_added_clauses_cumulative", "integer"),
     ResultColumn("formula_scope"),
-    ResultColumn("runtime_seconds", "seconds"),
+    ResultColumn("full_schedule_candidates", "integer"),
+    ResultColumn("unary_eligible_schedule_candidates", "integer"),
+    ResultColumn("reduced_schedule_candidates", "integer"),
+    ResultColumn("active_schedule_candidates", "integer"),
+    ResultColumn("precedence_direct_edges", "integer"),
+    ResultColumn("precedence_closure_edges", "integer"),
+    ResultColumn("precedence_relation_edges", "integer"),
+    ResultColumn("precedence_max_distance", "integer"),
+    ResultColumn("precedence_pairwise_clauses", "integer"),
+    ResultColumn("precedence_sparse_link_clauses", "integer"),
+    ResultColumn("precedence_unique_suffix_cuts", "integer"),
+    ResultColumn("input_parsing_seconds", "seconds"),
+    ResultColumn("model_construction_seconds", "seconds"),
     ResultColumn("model_build_seconds", "seconds"),
     ResultColumn("solve_and_validate_seconds", "seconds"),
     ResultColumn("runtime_scope"),
-    ResultColumn("runtime_censored", "boolean"),
-    ResultColumn("status"),
-    ResultColumn("sat_result"),
-    ResultColumn("best_value", "integer"),
-    ResultColumn("proven_optimum", "integer"),
-    ResultColumn("peak_memory_mb", "decimal"),
+    ResultColumn("idle_range_pstar", "integer"),
+    ResultColumn("total_internal_idle_slots", "integer"),
+    ResultColumn("all_participant_idle_range", "integer"),
+    ResultColumn("memory_metric"),
+    ResultColumn("instance_sha256"),
+    ResultColumn("instance_variant"),
+    ResultColumn("instance_path"),
+    ResultColumn("source_alias_count", "integer"),
+    ResultColumn("source_alias_paths"),
+    ResultColumn("repository_alias_count", "integer"),
+    ResultColumn("repository_alias_paths"),
+    ResultColumn("dataset_source_page"),
+    ResultColumn("dataset_archive_url"),
+    ResultColumn("dataset_archive_sha256"),
+    ResultColumn("run_started_utc"),
+    ResultColumn("timeout_seconds", "seconds"),
+    ResultColumn("memory_limit_mb", "decimal"),
+    ResultColumn("git_commit"),
+    ResultColumn("git_dirty", "boolean"),
+    ResultColumn("python_version"),
+    ResultColumn("pysat_version"),
+    ResultColumn("hostname"),
+    ResultColumn("platform"),
+    ResultColumn("cpu_model"),
+    ResultColumn("physical_cpu_cores", "integer"),
+    ResultColumn("logical_cpu_cores", "integer"),
+    ResultColumn("system_memory_mb", "decimal"),
+    ResultColumn("random_seed", "integer"),
+    ResultColumn("runner_command"),
+    ResultColumn("solver_binary"),
+    ResultColumn("solver_binary_sha256"),
+    ResultColumn("solver_command"),
     ResultColumn("validation_errors"),
     ResultColumn("solver_message"),
     ResultColumn("error_type"),
@@ -73,7 +150,15 @@ README_ROWS = (
     ),
     (
         "model_build_seconds",
-        "Instance parsing, preprocessing, and construction of the shared base formula.",
+        "input_parsing_seconds + model_construction_seconds.",
+    ),
+    (
+        "input_parsing_seconds",
+        "Reading and parsing the .dzn input inside the timed worker.",
+    ),
+    (
+        "model_construction_seconds",
+        "Domain/graph preprocessing and construction of the shared base formula.",
     ),
     (
         "solve_and_validate_seconds",
@@ -87,8 +172,18 @@ README_ROWS = (
     ),
     (
         "SAT clauses",
-        "n_soft_clauses is zero. Counts describe the shared base CNF before "
-        "optimizer-specific bound/totalizer clauses.",
+        "n_soft_clauses is zero. Base counts are comparable across engines; "
+        "optimizer_added_* records bound/totalizer overhead separately.",
+    ),
+    (
+        "Configuration key",
+        "configuration_id/configuration_key contains all M/P/G/B/O/S/I factors "
+        "and the exact backend; configuration_label is a compact display alias.",
+    ),
+    (
+        "Dataset identity",
+        "instance_content_id and instance_sha256 identify canonical content; "
+        "source_alias_paths preserves all official UdG archive names.",
     ),
     (
         "best_value",
@@ -222,6 +317,36 @@ def _column_widths(rows: Iterable[list[Any]], *, maximum: float = 42.0) -> list[
     ]
 
 
+def _result_column_widths(rows: list[list[Any]]) -> list[float]:
+    widths = _column_widths(rows)
+    wide_text = {
+        "configuration_id",
+        "configuration_key",
+        "instance_path",
+        "source_alias_paths",
+        "repository_alias_paths",
+        "runner_command",
+        "solver_command",
+        "solver_message",
+        "validation_errors",
+        "error_message",
+    }
+    exact_hashes = {
+        "instance_sha256",
+        "dataset_archive_sha256",
+        "solver_binary_sha256",
+        "git_commit",
+    }
+    for index, column in enumerate(RESULT_COLUMNS):
+        if column.key in wide_text:
+            widths[index] = 80.0
+        elif column.key in exact_hashes:
+            widths[index] = 68.0
+        elif column.key == "configuration_label":
+            widths[index] = 36.0
+    return widths
+
+
 def _styles_xml() -> str:
     return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -286,7 +411,7 @@ def write_instance_workbook(
             for _ in results
         ],
     ]
-    result_widths = _column_widths(result_rows)
+    result_widths = _result_column_widths(result_rows)
 
     readme_rows: list[list[Any]] = [
         ["field", "definition"],

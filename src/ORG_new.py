@@ -4,13 +4,25 @@ from pysat.formula import CNF, WCNF
 from pysat.card import CardEnc, EncType
 from math import inf, sqrt
 import subprocess
+import shlex
 import time
 import os
-import glob
-import csv
 import threading
+import tempfile
+from pathlib import Path
 
-from MaxSAT_Solver import resolve_uwrmaxsat_binary
+from Excel_Results import FORMULA_SCOPE, RUNTIME_SCOPE, safe_workbook_name, write_instance_workbook
+from Main import (
+    collect_instances,
+    experiment_metadata,
+    instance_result_metadata,
+    write_detailed_csv,
+)
+from MaxSAT_Solver import (
+    UWRMAXSAT_NOT_FOUND_MESSAGE,
+    executable_sha256,
+    resolve_uwrmaxsat_binary,
+)
 
 try:
     import psutil
@@ -27,7 +39,24 @@ def parse_args():
             'least two meetings; no hard objective cap is added.'
         )
     )
-    return parser.parse_args()
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument('--instance', help='single .dzn instance')
+    input_group.add_argument('--data-dir', help='SHA-256-deduplicated .dzn directory')
+    input_group.add_argument('--manifest', help='canonical instances_manifest.csv')
+    parser.add_argument(
+        '--family',
+        choices=['all', 'original', 'forbidden', 'fixed', 'precedence'],
+        default='all',
+    )
+    parser.add_argument('--timeout', type=float, default=7200.0)
+    parser.add_argument('--uwrmaxsat-bin')
+    parser.add_argument('--uwrmaxsat-sha256')
+    parser.add_argument('--csv')
+    parser.add_argument('--excel-dir')
+    args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error('--timeout must be positive')
+    return args
 
 
 ARGS = parse_args()
@@ -35,43 +64,21 @@ ARGS = parse_args()
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-INPUT_DIR = os.path.join(PROJECT_DIR, 'data_table08_prec')
 OUTPUT_DIR = os.path.join(PROJECT_DIR, 'output')
 
 # Một bảng CSV tổng hợp cho toàn bộ instance, tương tự detailed CSV trong Main.
-CSV_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'ORG_new_results_table08.csv')
+CSV_OUTPUT_FILE = ARGS.csv or os.path.join(
+    OUTPUT_DIR,
+    'ORG_new_baseline_results.csv',
+)
+EXCEL_OUTPUT_DIR = Path(ARGS.excel_dir or (Path(CSV_OUTPUT_FILE).parent / 'excel_org'))
 
 # Giống Main.py: lấy peak RSS của tiến trình chạy instance và toàn bộ child process.
 MEMORY_SAMPLE_INTERVAL_S = 0.05
 MEMORY_METRIC = 'peak_process_tree_rss_mb'
 
-CSV_FIELDS = [
-    'instance',
-    'sat_result',
-    'status',
-    'total_runtime_s',
-    'input_parsing_s',
-    'constraint_building_s',
-    'solver_runtime_s',
-    'peak_memory_mb',
-    'memory_metric',
-    'n_vars',
-    'n_hard_clauses',
-    'n_soft_clauses',
-    'n_total_clauses',
-    'solver',
-    'solver_cost',
-    'idle_range_pstar',
-    'objective_participants',
-    'participant_gap_slots',
-    'assignment_by_meeting',
-    'schedule_by_slot',
-    'validation_status',
-    'error_type',
-    'error_message',
-]
-
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+EXCEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _process_tree_rss_bytes(pid):
@@ -169,18 +176,40 @@ def status_to_sat_result(status):
 
 csv_results = []
 
-# Lấy toàn bộ file .dzn trong folder
-input_files = sorted(
-    glob.glob(os.path.join(INPUT_DIR, '*.dzn'))
+instance_specs = collect_instances(
+    ARGS.instance,
+    ARGS.data_dir,
+    ARGS.manifest,
+    ARGS.family,
 )
+experiment = experiment_metadata(ARGS, None, runner_path=__file__)
 
-print(f'Found {len(input_files)} input files')
+UWRMAXSAT_BINARY = resolve_uwrmaxsat_binary(ARGS.uwrmaxsat_bin)
+if UWRMAXSAT_BINARY is None:
+    raise SystemExit(f'ERROR: {UWRMAXSAT_NOT_FOUND_MESSAGE}')
+UWRMAXSAT_BINARY_SHA256 = executable_sha256(UWRMAXSAT_BINARY)
+expected_uwr_sha256 = (ARGS.uwrmaxsat_sha256 or '').strip().lower()
+if expected_uwr_sha256 and (
+    len(expected_uwr_sha256) != 64
+    or any(char not in '0123456789abcdef' for char in expected_uwr_sha256)
+):
+    raise SystemExit(
+        'ERROR: --uwrmaxsat-sha256 must be a 64-character hex digest'
+    )
+if expected_uwr_sha256 and expected_uwr_sha256 != UWRMAXSAT_BINARY_SHA256:
+    raise SystemExit(
+        'ERROR: UWrMaxSAT executable SHA-256 mismatch: '
+        f'expected {expected_uwr_sha256}, got {UWRMAXSAT_BINARY_SHA256}'
+    )
+
+print(f'Found {len(instance_specs)} canonical input contents')
 
 test_counter = 0
 
-for input_file in input_files:
+for instance_spec in instance_specs:
     test_counter += 1
 
+    input_file = str(instance_spec.path)
     base_name = os.path.basename(input_file)
 
     print(f"\n{'=' * 60}")
@@ -848,60 +877,90 @@ for input_file in input_files:
         'Hard objective cap: disabled (added clauses: 0)'
     )
 
-    def solve_maxsat():
-        uwrmaxsat_bin = resolve_uwrmaxsat_binary()
-        WCNF_FILE = 'maxHS_idle_range_pstar.wcnf'
-        TIMEOUT = 3600  # 1 hour
+    def parse_uwr_output(output):
+        model = []
+        solution_cost = None
+        status = None
+        for raw_line in output.splitlines():
+            line = raw_line.strip()
+            if line.startswith('s '):
+                status = line[2:].strip()
+            elif line.startswith('o '):
+                try:
+                    solution_cost = int(line[2:].strip())
+                except ValueError:
+                    pass
+            elif line.startswith('v '):
+                for token in line[2:].split():
+                    try:
+                        literal = int(token)
+                    except ValueError:
+                        continue
+                    if literal != 0:
+                        model.append(literal)
+        return status, solution_cost, model
 
-        if uwrmaxsat_bin is not None:
-            try:
-                result = subprocess.run(
-                    [str(uwrmaxsat_bin), '-m', WCNF_FILE],
-                    capture_output=True, text=True, timeout=TIMEOUT
-                )
-                output = result.stdout
+    def solve_maxsat(wcnf_path):
+        command = [str(UWRMAXSAT_BINARY), '-m', str(wcnf_path)]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=ARGS.timeout,
+                check=False,
+                start_new_session=(os.name != 'nt'),
+            )
+            output = '\n'.join(
+                part for part in (result.stdout, result.stderr) if part
+            )
+            status, solution_cost, model = parse_uwr_output(output)
+            normalized_status = (status or '').upper()
+            if normalized_status in {'OPTIMUM FOUND', 'OPTIMAL', 'OPTIMUM'} and model:
+                print(f"UWrMaxSAT optimum IdleRange(P*): {solution_cost}")
+                return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL', command
+            if normalized_status in {'UNSAT', 'UNSATISFIABLE'}:
+                return None, None, 'UWrMaxSAT', 'UNSAT', command
+            print(f"UWrMaxSAT status: {status}")
+            return None, solution_cost, 'UWrMaxSAT', 'ERROR', command
+        except subprocess.TimeoutExpired as exc:
+            partial_parts = []
+            for part in (exc.stdout, exc.stderr):
+                if isinstance(part, bytes):
+                    part = part.decode(errors='replace')
+                if part:
+                    partial_parts.append(part)
+            _, solution_cost, model = parse_uwr_output('\n'.join(partial_parts))
+            print(f"TIMEOUT: UWrMaxSAT timeout after {ARGS.timeout} seconds")
+            return (
+                model or None,
+                solution_cost,
+                'UWrMaxSAT',
+                'TIMEOUT',
+                command,
+            )
 
-                model = []
-                solution_cost = None
-                status = None
-
-                for line in output.splitlines():
-                    if line.startswith('s '):
-                        status = line[2:].strip()
-                    elif line.startswith('o '):
-                        solution_cost = int(line[2:].strip())
-                    elif line.startswith('v '):
-                        model.extend(int(lit) for lit in line[2:].split())
-
-                if status == 'OPTIMUM FOUND' and model:
-                    print(f"UWrMaxSAT optimum IdleRange(P*): {solution_cost}")
-                    return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL'
-
-                print(f"UWrMaxSAT status: {status}")
-                normalized_status = (status or '').upper()
-                csv_status = (
-                    'UNSAT'
-                    if normalized_status in {'UNSAT', 'UNSATISFIABLE'}
-                    else 'ERROR'
-                )
-                return None, None, 'UWrMaxSAT', csv_status
-
-            except subprocess.TimeoutExpired:
-                print(f"TIMEOUT: UWrMaxSAT timeout after {TIMEOUT} seconds")
-                return None, None, 'UWrMaxSAT', 'TIMEOUT'
-
-        print(
-            'ERROR: required UWrMaxSAT binary not found; '
-            'automatic RC2 fallback is disabled.'
-        )
-        return None, None, 'UWrMaxSAT', 'ERROR'
-
-    # Write the WCNF to a file
-    wcnf.to_file('maxHS_idle_range_pstar.wcnf')
+    with tempfile.NamedTemporaryFile(
+        prefix=f'org_{Path(base_name).stem}_',
+        suffix='.wcnf',
+        delete=False,
+    ) as temp_wcnf:
+        wcnf_path = Path(temp_wcnf.name)
+    wcnf.to_file(str(wcnf_path))
 
     # Solve
     solve_start = time.time()
-    assignment, solver_cost, solver_used, solve_status = solve_maxsat()
+    try:
+        (
+            assignment,
+            solver_cost,
+            solver_used,
+            solve_status,
+            solver_command,
+        ) = solve_maxsat(wcnf_path)
+    finally:
+        wcnf_path.unlink(missing_ok=True)
+    solver_finished = time.time()
 
     # Independently recompute the new objective from the decoded schedule.
     participant_gap_slots = []
@@ -937,13 +996,9 @@ for input_file in input_files:
                 f"Objective mismatch: solver_cost={solver_cost}, "
                 f"recomputed_IdleRange(P*)={idle_range_pstar}"
             )
-    solve_time = time.time()
-    print(f"MaxSAT solving completed in {solve_time - solve_start:.4f} seconds")
+    print(f"MaxSAT solving completed in {solver_finished - solve_start:.4f} seconds")
 
     # print(assignment)
-
-    end_time = time.time()
-    total_time = end_time - start_time
 
     # Output the schedule based on the assignment
 
@@ -952,10 +1007,6 @@ for input_file in input_files:
     #         for t in range(1, nTotalSlots + 1):
     #             if x[m][t] in assignment:
     #                 print(f"Meeting {m} → Time slot {t}")
-
-    print(f"\n{'='*60}")
-    print(f"TOTAL RUNTIME: {total_time:.4f} seconds ({total_time:.2f}s)")
-    print(f"{'='*60}")
 
     # Build schedule serializations for the aggregate CSV.
     schedule_pairs = []
@@ -1102,6 +1153,12 @@ for input_file in input_files:
                 assert prec_time < m_time, f"Meeting {prec} should be scheduled before meeting {m} (prec_time={prec_time}, m_time={m_time})"
         validation_status = 'PASSED'
 
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"\n{'='*60}")
+    print(f"TOTAL RUNTIME: {total_time:.4f} seconds ({total_time:.2f}s)")
+    print(f"{'='*60}")
+
     peak_memory_mb = memory_sampler.stop_mb()
     print(
         'Peak process-tree RSS: '
@@ -1109,31 +1166,127 @@ for input_file in input_files:
         else 'Peak process-tree RSS: N/A (install psutil to enable it)'
     )
 
-    csv_results.append({
-        'instance': os.path.splitext(base_name)[0],
+    clause_lengths = [len(clause) for clause in cnf.clauses]
+    n_primary_variables = nMeetings * nTotalSlots
+    all_participant_idle_range = (
+        max(participant_gap_slots) - min(participant_gap_slots)
+        if participant_gap_slots
+        else None
+    )
+    baseline_result = {
+        **instance_result_metadata(instance_spec),
+        **experiment,
+        'configuration_label': 'ORG-F-PW-DE-PSC-IRP-UW-IC12P',
+        'configuration_id': (
+            'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
+            'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
+            's-uwrmaxsat__i-ic12plus__fairness-none'
+        ),
+        'configuration_key': (
+            'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
+            'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
+            's-uwrmaxsat__i-ic12plus__fairness-none'
+        ),
+        'factor_m': 'ORGFull',
+        'factor_p': 'Pairwise',
+        'factor_g': 'Direct-E',
+        'factor_b': 'PerSlotCardinality',
+        'factor_o': 'IdleRangePstar',
+        'factor_s': 'UWrMaxSAT',
+        'factor_i': 'OldBestIC12+',
+        'domain_mode': 'legacy_full',
+        'precedence_encoding': 'pairwise',
+        'precedence_graph': 'direct',
+        'optimization_engine': 'UWrMaxSAT',
+        'solver_backend': solver_used,
+        'solver_version': f'binary-sha256:{UWRMAXSAT_BINARY_SHA256}',
+        'encoding_variant': 'org_old_best_ic12+',
+        'idle_encoding': 'per_slot_cardinality',
+        'objective': 'internal_idle_slot_range_pstar',
+        'objective_code': 'IRP',
+        'implied_constraints_code': 'OldBestIC12+',
         'sat_result': status_to_sat_result(solve_status),
         'status': solve_status,
-        'total_runtime_s': round(total_time, 6),
-        'input_parsing_s': round(input_time - start_time, 6),
-        'constraint_building_s': round(constraint_time - input_time, 6),
-        'solver_runtime_s': round(solve_time - solve_start, 6),
+        'runtime_seconds': round(total_time, 6),
+        'input_parsing_seconds': round(input_time - start_time, 6),
+        'model_construction_seconds': round(constraint_time - input_time, 6),
+        'model_build_seconds': round(constraint_time - start_time, 6),
+        'solve_and_validate_seconds': round(end_time - constraint_time, 6),
+        'solver_runtime_seconds': round(solver_finished - solve_start, 6),
+        'runtime_scope': RUNTIME_SCOPE,
+        'runtime_censored': solve_status == 'TIMEOUT',
         'peak_memory_mb': peak_memory_mb,
         'memory_metric': MEMORY_METRIC,
         'n_vars': variable_size,
+        'n_primary_variables': n_primary_variables,
+        'n_auxiliary_variables': variable_size - n_primary_variables,
         'n_hard_clauses': len(cnf.clauses),
         'n_soft_clauses': max_gap_slots,
         'n_total_clauses': len(cnf.clauses) + max_gap_slots,
+        'n_hard_literals': sum(clause_lengths),
+        'n_soft_literals': max_gap_slots,
+        'n_total_literals': sum(clause_lengths) + max_gap_slots,
+        'max_hard_clause_length': max(clause_lengths, default=0),
+        'max_soft_clause_length': 1 if max_gap_slots else 0,
+        'n_unit_hard_clauses': sum(length == 1 for length in clause_lengths),
+        'n_binary_hard_clauses': sum(length == 2 for length in clause_lengths),
+        'n_ternary_hard_clauses': sum(length == 3 for length in clause_lengths),
+        'n_long_hard_clauses': sum(length >= 4 for length in clause_lengths),
+        'soft_clause_weight': 1 if max_gap_slots else 0,
+        'soft_weight_sum': max_gap_slots,
+        'n_objective_lits': max_gap_slots,
+        'n_optimizer_calls': 1,
+        'n_bound_encodings': 0,
+        'optimizer_added_variables_peak': 0,
+        'optimizer_added_clauses_peak': 0,
+        'optimizer_added_literals_peak': 0,
+        'optimizer_added_clauses_cumulative': 0,
+        'formula_scope': FORMULA_SCOPE,
+        'full_schedule_candidates': n_primary_variables,
+        'unary_eligible_schedule_candidates': None,
+        'reduced_schedule_candidates': None,
+        'active_schedule_candidates': n_primary_variables,
+        'precedence_direct_edges': sum(
+            len(predecessors) for predecessors in precedences[1:]
+        ),
+        'precedence_closure_edges': None,
+        'precedence_relation_edges': sum(
+            len(predecessors) for predecessors in precedences[1:]
+        ),
+        'precedence_max_distance': 1,
+        'precedence_pairwise_clauses': None,
+        'precedence_sparse_link_clauses': 0,
+        'precedence_unique_suffix_cuts': 0,
         'solver': solver_used,
+        'solver_binary': str(UWRMAXSAT_BINARY),
+        'solver_binary_sha256': UWRMAXSAT_BINARY_SHA256,
+        'solver_command': shlex.join(solver_command),
+        'solver_message': '',
         'solver_cost': solver_cost,
+        'best_value': solver_cost,
+        'proven_optimum': solver_cost if solve_status == 'OPTIMAL' else None,
         'idle_range_pstar': idle_range_pstar,
+        'all_participant_idle_range': all_participant_idle_range,
+        'total_internal_idle_slots': (
+            sum(participant_gap_slots) if participant_gap_slots else None
+        ),
+        'objective_participant_count': len(objective_participants),
         'objective_participants': serialize_list(objective_participants),
         'participant_gap_slots': serialize_list(participant_gap_slots),
         'assignment_by_meeting': serialize_assignment(schedule_pairs),
         'schedule_by_slot': serialize_schedule(meetings_per_slot),
         'validation_status': validation_status,
+        'validation_errors': '',
         'error_type': '',
         'error_message': '',
-    })
+    }
+    csv_results.append(baseline_result)
+    workbook_path = write_instance_workbook(
+        EXCEL_OUTPUT_DIR / safe_workbook_name(instance_spec.instance_name),
+        instance_spec.instance_name,
+        [baseline_result],
+    )
+    print(f'Excel exported to: {workbook_path}')
 
     print(
         f"Result queued for CSV: {solve_status} | "
@@ -1143,9 +1296,6 @@ for input_file in input_files:
 
 
 # Xuất một bảng CSV tổng hợp sau khi chạy toàn bộ input.
-with open(CSV_OUTPUT_FILE, 'w', newline='', encoding='utf-8') as csv_file:
-    writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
-    writer.writeheader()
-    writer.writerows(csv_results)
+write_detailed_csv(Path(CSV_OUTPUT_FILE), csv_results)
 
 print(f"CSV exported to: {CSV_OUTPUT_FILE}")

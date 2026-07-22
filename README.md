@@ -26,9 +26,12 @@ Lexicographic `IdleSum` objective.
   UWrMaxSAT production execution and an explicit RC2 development backend.
 - `src/Multiple_SAT.py`: fresh-SAT binary-search optimization.
 - `src/IncrementalSAT_Solver.py`: incremental-SAT optimization with a totalizer.
-- `src/Main.py`: timeout-controlled benchmark runner and CSV exporter.
-- `src/ORG_new.py`: paper-style ORG MaxSAT baseline using the same
-  `IdleRange(P*)` participant set.
+- `src/Dataset_Manifest.py`: canonical SHA-256 manifest for the official UdG
+  benchmark archive.
+- `src/Main.py`: timeout-controlled benchmark runner and CSV/XLSX exporter.
+- `src/ORG_new.py`: the strongest legacy paper-style MaxSAT baseline, adapted
+  only by replacing the objective with `IdleRange(P*)` and removing the
+  fairness cap (d=2).
 
 ## Full versus Reduced Domain
 
@@ -77,26 +80,30 @@ count, and unique suffix-cut count.
 
 ## Run examples
 
-Run all three optimizers, all four P x G cells, both domains, and all compact
-encoding variants on one instance:
+The production implied-constraint package defaults to `imp12+`. On an instance
+without precedence, omitted P/G flags automatically collapse to the neutral
+`pairwise + direct` cell, giving exactly `2 domains x 3 engines = 6` runs:
 
 ```bash
 python3 src/Main.py \
   --instance data_table03_origin/tic-12.original.dzn \
   --solver all \
-  --precedence-encoding both \
-  --precedence-graph both \
-  --encoding-variant all \
   --domain-mode both \
   --timeout 120 \
-  --csv output/table3_results.csv
+  --csv output/benchmark_results.csv
 ```
 
-Run only MaxSAT with the most compact encoding:
+On a precedence instance the same omitted P/G flags expand to all four cells,
+giving exactly `2 domains x 4 P/G cells x 3 engines = 24` runs. Explicit P/G
+flags always override this automatic collapse. Use `--encoding-variant all`
+only for a diagnostic implied-constraint ablation.
+
+Run the canonical, deduplicated precedence family with production UWrMaxSAT:
 
 ```bash
 python3 src/Main.py \
-  --data-dir data_table08_prec \
+  --manifest instances_manifest.csv \
+  --family precedence \
   --solver maxsat \
   --maxsat-backend uwrmaxsat \
   --uwrmaxsat-bin /absolute/path/to/uwrmaxsat \
@@ -117,6 +124,39 @@ the selected backend, version, executable path, UWrMaxSAT binary SHA-256, and
 command line. `--maxsat-backend rc2` and `--sat-backend glucose` remain explicit
 development-only choices and must not be mixed with production results.
 
+## Official dataset and canonical manifest
+
+The benchmark source is the `b2b.zip` archive linked as **B2B benchmarks** on
+the UdG Logic and Artificial Intelligence page. The extracted `noves/`
+directory contains 140 official paths. SHA-256 grouping yields 126 distinct
+contents: 20 original, 26 forbidden, 40 fixed, and 40 precedence instances.
+Fourteen forbidden contents each have two official names. The repository also
+contains 40 derived fixed-file copies under `data_table06_forb`, giving 180
+repository paths but still only 126 contents.
+
+Regenerate the checked-in manifest from the official extracted directory:
+
+```bash
+python3 src/Dataset_Manifest.py \
+  --source-dir ../noves \
+  --output instances_manifest.csv
+```
+
+With no `--instance`, `--data-dir`, or `--manifest`, `Main.py` uses the checked-in
+manifest. Manifest and directory inputs are content-deduplicated; `--family`
+selects `original`, `forbidden`, `fixed`, or `precedence`. Every result records
+the content ID, full SHA-256, official aliases, repository aliases, source page,
+and archive hash.
+
+## Configuration identity
+
+Every row stores the seven factors separately: M (domain), P (precedence
+encoding), G (precedence graph), B (`SpanThreshold`), O (`IdleRangePstar`), S
+(optimization engine), and I (implied package). A compact label such as
+`R-SS-DC-ST-IRP-UW-IC12P` contains all seven factors. The versioned
+`configuration_id`/`configuration_key` additionally contains their full names
+and the exact backend and is the unique machine key.
+
 ## Per-instance Excel logs
 
 In addition to the aggregate and detailed CSV files, `Main.py` writes one
@@ -127,16 +167,18 @@ configuration, so results already obtained survive an interrupted batch.
 
 The `Results` sheet has one row per configuration and records, among other
 fields, the stable configuration label/ID, variables, total/hard/soft clauses,
-status, best returned objective value, proven optimum, memory, and timing. For
-MaxSAT, hard and soft clause counts are separate. The `README` sheet defines
-the measurement scopes.
+hard/soft literals, clause-length distribution, SAT-bound overhead, status,
+best returned objective value, proven optimum, dataset identity, environment,
+memory, and timing. For MaxSAT, hard and soft clause counts are separate. The
+`README` sheet defines the measurement scopes.
 
 `runtime_seconds` is end-to-end monotonic wall time measured inside the worker:
 from immediately before reading/parsing the `.dzn` file through formula
 construction, optimization, decoding, and independent validation. It excludes
-worker-process startup and CSV/XLSX export. `model_build_seconds` and
-`solve_and_validate_seconds` retain the two main components. A timeout is a
-right-censored controller cutoff and is marked by `runtime_censored=TRUE`.
+worker-process startup and CSV/XLSX export. `input_parsing_seconds`,
+`model_construction_seconds`, `model_build_seconds`, and
+`solve_and_validate_seconds` retain the components. A timeout is a right-censored
+controller cutoff and is marked by `runtime_censored=TRUE`.
 This start point matches the historical `ORG_old.py` total timer, which begins
 immediately before `read_input()`. The 2022 paper labels its table entries as
 solving times but does not state a more precise timer boundary, so both the
@@ -145,8 +187,34 @@ equating the two definitions.
 
 Formula size fields describe the shared base CNF. MaxSAT's
 `n_total_clauses` additionally includes the unit soft objective clauses. SAT
-optimizer-specific bound/totalizer clauses are not included in these base
-formula counts and this scope is recorded in every row.
+optimizer-specific bound/totalizer variables, clauses, and literals are kept in
+separate `optimizer_added_*` fields, together with solver-call and bound-encoding
+counts. SAT incumbents are sent to the controller during optimization, so a hard
+timeout retains the best validated objective found so far.
+
+## Legacy ORG MaxSAT baseline
+
+`ORG_new.py` is not another level of the shared M/P/G factorial model. It is a
+separately labelled baseline for the strongest MaxSAT formulation of the old
+paper: full meeting-slot variables, the legacy per-slot/cardinality waiting
+encoding, its implied-constraint package, and UWrMaxSAT. The adaptation uses
+`IdleRange(P*)`, has no lexicographic secondary objective, and does not generate
+the old hard fairness constraint (d=2).
+
+```bash
+python3 src/ORG_new.py \
+  --manifest instances_manifest.csv \
+  --family precedence \
+  --uwrmaxsat-bin /absolute/path/to/uwrmaxsat \
+  --uwrmaxsat-sha256 <expected-64-character-sha256> \
+  --timeout 7200 \
+  --csv output/org_baseline.csv \
+  --excel-dir output/excel_org
+```
+
+The baseline uses the same dataset manifest, UWrMaxSAT pinning, end-to-end timer,
+result schema, per-instance Excel output, and independent schedule/objective
+validation as the shared runner.
 
 Build and inspect one CNF/WCNF directly:
 
@@ -162,5 +230,6 @@ python3 src/B2B_Instance.py \
 ## Test
 
 ```bash
+python3 -m pip install -r src/requirements.txt
 python3 -m unittest discover -s tests -v
 ```
