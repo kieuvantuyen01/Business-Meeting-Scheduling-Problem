@@ -40,15 +40,26 @@ class B2BIncrementalSATSolver:
     def __init__(
         self,
         instance_or_path: B2BInstance | str | Path,
-        precedence_mode: str = "traditional",
+        precedence_mode: str | None = None,
         encoding_variant: str = "imp12+",
         solver_name: str = "cadical",
         domain_mode: str = "reduced",
+        *,
+        precedence_encoding: str | None = None,
+        precedence_graph: str | None = None,
     ) -> None:
+        if (
+            precedence_mode is None
+            and precedence_encoding is None
+            and precedence_graph is None
+        ):
+            precedence_mode = "traditional"
         self.inst = _ensure_instance(instance_or_path)
         self.model = B2BSATModel(
             inst=self.inst,
             precedence_mode=precedence_mode,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
         )
@@ -68,6 +79,11 @@ class B2BIncrementalSATSolver:
             "status": status,
             "solver": "IncrementalSAT",
             "precedence_mode": self.artifacts.precedence_mode,
+            "precedence_encoding": self.artifacts.precedence_encoding,
+            "precedence_graph": self.artifacts.precedence_graph,
+            "precedence_configuration": (
+                self.artifacts.precedence_configuration
+            ),
             "encoding_variant": self.artifacts.encoding_variant,
             "domain_mode": self.artifacts.domain_mode,
             "objective": self.artifacts.objective_name,
@@ -120,6 +136,18 @@ class B2BIncrementalSATSolver:
                 self.artifacts.precedence_transitive_edges
             ),
             "precedence_max_distance": self.artifacts.precedence_max_distance,
+            "precedence_relation_edges": (
+                self.artifacts.precedence_relation_edges
+            ),
+            "precedence_pairwise_clauses": (
+                self.artifacts.precedence_pairwise_clauses
+            ),
+            "precedence_sparse_link_clauses": (
+                self.artifacts.precedence_sparse_link_clauses
+            ),
+            "precedence_unique_suffix_cuts": (
+                self.artifacts.precedence_unique_suffix_cuts
+            ),
             "enabled_constraints": self.artifacts.enabled_constraints,
         }
 
@@ -230,15 +258,20 @@ class B2BIncrementalSATSolver:
 
 def solve_b2b(
     instance_or_path: B2BInstance | str | Path,
-    precedence_mode: str = "traditional",
+    precedence_mode: str | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
     solver_name: str = "cadical",
     domain_mode: str = "reduced",
+    *,
+    precedence_encoding: str | None = None,
+    precedence_graph: str | None = None,
 ) -> dict[str, Any]:
     return B2BIncrementalSATSolver(
         instance_or_path=instance_or_path,
         precedence_mode=precedence_mode,
+        precedence_encoding=precedence_encoding,
+        precedence_graph=precedence_graph,
         encoding_variant=encoding_variant,
         solver_name=solver_name,
         domain_mode=domain_mode,

@@ -22,7 +22,8 @@ Lexicographic `IdleSum` objective.
 
 - `src/B2B_Instance.py`: parser, exact domain reduction, compact break encoding,
   hard constraints, objective literals, decoding, and independent validation.
-- `src/MaxSAT_Solver.py`: unit-weight partial MaxSAT optimization with RC2.
+- `src/MaxSAT_Solver.py`: unit-weight partial MaxSAT optimization with
+  UWrMaxSAT and an explicit RC2 development backend.
 - `src/Multiple_SAT.py`: fresh-SAT binary-search optimization.
 - `src/IncrementalSAT_Solver.py`: incremental-SAT optimization with a totalizer.
 - `src/Main.py`: timeout-controlled benchmark runner and CSV exporter.
@@ -43,7 +44,7 @@ schedule-variable domain:
   propagation.
 
 All other hard constraints, `SpanThreshold` idle encoding, `IdleRange(P*)`
-objective, precedence mode, and optimizer are shared. Use
+objective, precedence configuration, and optimizer are shared. Use
 `--domain-mode full|reduced|both` in the benchmark runner.
 
 Detailed CSV output distinguishes `full_schedule_candidates` (\(|M||T|\)),
@@ -51,16 +52,40 @@ Detailed CSV output distinguishes `full_schedule_candidates` (\(|M||T|\)),
 `active_schedule_candidates`. The legacy `initial_schedule_candidates` field
 remains an alias for the unary-eligible count.
 
+## Independent precedence factors
+
+The shared encoder exposes the precedence constraint encoding (P) and graph
+(G) as independent flags:
+
+- `--precedence-encoding pairwise` emits one binary clause for each violating
+  meeting-slot pair.
+- `--precedence-encoding sparse_suffix` uses exact shared suffix literals at
+  only the cut positions queried by the selected relations.
+- `--precedence-graph direct` encodes each input edge with distance one.
+- `--precedence-graph distance_closure` encodes every transitive relation with
+  its longest-path distance.
+
+This gives the complete `2 x 2` factorial matrix. Domain preprocessing remains
+distance-closure-based in all four cells, so changing G affects only the
+relations encoded in the CNF. The deprecated aliases remain exact mappings:
+`traditional = pairwise + direct` and
+`staircase = sparse_suffix + distance_closure`.
+
+Detailed CSV output records `precedence_encoding`, `precedence_graph`, their
+composite label, selected relation count, pairwise clause count, sparse link
+count, and unique suffix-cut count.
+
 ## Run examples
 
-Run all three optimizers, both precedence encodings, and all compact encoding
-variants on one instance:
+Run all three optimizers, all four P x G cells, both domains, and all compact
+encoding variants on one instance:
 
 ```bash
 python3 src/Main.py \
   --instance data_table03_origin/tic-12.original.dzn \
   --solver all \
-  --precedence-mode both \
+  --precedence-encoding both \
+  --precedence-graph both \
   --encoding-variant all \
   --domain-mode both \
   --timeout 120 \
@@ -73,7 +98,8 @@ Run only MaxSAT with the most compact encoding:
 python3 src/Main.py \
   --data-dir data_table08_prec \
   --solver maxsat \
-  --precedence-mode staircase \
+  --precedence-encoding sparse_suffix \
+  --precedence-graph distance_closure \
   --encoding-variant imp12+ \
   --domain-mode reduced \
   --timeout 7200 \
@@ -85,7 +111,8 @@ Build and inspect one CNF/WCNF directly:
 ```bash
 python3 src/B2B_Instance.py \
   data_table03_origin/tic-12.original.dzn \
-  --precedence-mode staircase \
+  --precedence-encoding pairwise \
+  --precedence-graph distance_closure \
   --encoding-variant imp12+ \
   --domain-mode full
 ```

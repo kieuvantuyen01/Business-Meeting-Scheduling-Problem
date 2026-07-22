@@ -6,6 +6,8 @@ from itertools import product
 from pathlib import Path
 from random import Random
 
+from pysat.solvers import Glucose3
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
@@ -13,6 +15,14 @@ from B2B_Instance import B2BInstance, B2BSATModel
 from IncrementalSAT_Solver import B2BIncrementalSATSolver
 from MaxSAT_Solver import B2BMaxSATSolver
 from Multiple_SAT import B2BMultipleSATSolver
+
+
+PRECEDENCE_CELLS = (
+    ("pairwise", "direct"),
+    ("pairwise", "distance_closure"),
+    ("sparse_suffix", "direct"),
+    ("sparse_suffix", "distance_closure"),
+)
 
 
 def _restricted_instance() -> B2BInstance:
@@ -215,19 +225,21 @@ class FullDomainEncodingTests(unittest.TestCase):
         self.assertTrue(brute_force_values)
         brute_force_optimum = min(brute_force_values)
 
-        for precedence_mode in ("traditional", "staircase"):
+        for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
             for encoding_variant in ("basic", "imp1", "imp2", "imp12", "imp12+"):
                 results = {}
                 for domain_mode in ("full", "reduced"):
                     result = B2BMaxSATSolver(
                         inst,
-                        precedence_mode=precedence_mode,
+                        precedence_encoding=precedence_encoding,
+                        precedence_graph=precedence_graph,
                         encoding_variant=encoding_variant,
                         domain_mode=domain_mode,
                     ).solve()
                     results[domain_mode] = result
                     with self.subTest(
-                        precedence=precedence_mode,
+                        precedence_encoding=precedence_encoding,
+                        precedence_graph=precedence_graph,
                         variant=encoding_variant,
                         domain=domain_mode,
                     ):
@@ -293,17 +305,19 @@ class FullDomainEncodingTests(unittest.TestCase):
 
     def test_distance_two_chain_is_equivalent_and_cycle_is_unsat(self) -> None:
         chain = _precedence_chain_instance()
-        for precedence_mode in ("traditional", "staircase"):
+        for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
             for domain_mode in ("full", "reduced"):
                 result = B2BMaxSATSolver(
                     chain,
-                    precedence_mode=precedence_mode,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
                     encoding_variant="imp12+",
                     domain_mode=domain_mode,
                 ).solve()
                 with self.subTest(
                     case="distance-two-chain",
-                    precedence=precedence_mode,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
                     domain=domain_mode,
                 ):
                     self.assertEqual(result["status"], "OPTIMAL")
@@ -311,17 +325,19 @@ class FullDomainEncodingTests(unittest.TestCase):
                     self.assertEqual(result["validation_errors"], [])
 
         cycle = _precedence_chain_instance(cyclic=True)
-        for precedence_mode in ("traditional", "staircase"):
+        for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
             for domain_mode in ("full", "reduced"):
                 result = B2BMaxSATSolver(
                     cycle,
-                    precedence_mode=precedence_mode,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
                     encoding_variant="basic",
                     domain_mode=domain_mode,
                 ).solve()
                 with self.subTest(
                     case="cycle",
-                    precedence=precedence_mode,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
                     domain=domain_mode,
                 ):
                     self.assertEqual(result["status"], "UNSAT")
@@ -353,17 +369,19 @@ class FullDomainEncodingTests(unittest.TestCase):
             ]
             expected = min(feasible_objectives) if feasible_objectives else None
 
-            for precedence_mode in ("traditional", "staircase"):
+            for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
                 for domain_mode in ("full", "reduced"):
                     result = B2BMaxSATSolver(
                         inst,
-                        precedence_mode=precedence_mode,
+                        precedence_encoding=precedence_encoding,
+                        precedence_graph=precedence_graph,
                         encoding_variant="basic",
                         domain_mode=domain_mode,
                     ).solve()
                     with self.subTest(
                         seed=seed,
-                        precedence=precedence_mode,
+                        precedence_encoding=precedence_encoding,
+                        precedence_graph=precedence_graph,
                         domain=domain_mode,
                     ):
                         if expected is None:
@@ -372,6 +390,221 @@ class FullDomainEncodingTests(unittest.TestCase):
                             self.assertEqual(result["status"], "OPTIMAL")
                             self.assertEqual(result["objective_value"], expected)
                             self.assertEqual(result["validation_errors"], [])
+
+    def test_every_assignment_has_identical_feasibility_in_all_pg_cells(self) -> None:
+        instances = [
+            _precedence_chain_instance(),
+            *(_generated_instance(seed) for seed in range(4)),
+        ]
+        for inst in instances:
+            checker = B2BSATModel(inst, domain_mode="full")
+            assignments = [
+                list(assignment)
+                for assignment in product(
+                    range(inst.n_total_slots), repeat=inst.n_meetings
+                )
+            ]
+            expected = [
+                not checker.validate_assignment(assignment)
+                for assignment in assignments
+            ]
+
+            for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
+                model = B2BSATModel(
+                    inst,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                    encoding_variant="basic",
+                    domain_mode="full",
+                )
+                artifacts = model.build_base_cnf()
+                with Glucose3(bootstrap_with=artifacts.cnf.clauses) as solver:
+                    observed = [
+                        solver.solve(
+                            assumptions=[
+                                model.x(meeting, slot)
+                                for meeting, slot in enumerate(assignment)
+                            ]
+                        )
+                        for assignment in assignments
+                    ]
+                with self.subTest(
+                    instance=inst.instance_name,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                ):
+                    self.assertEqual(observed, expected)
+
+    def test_precedence_flags_are_independent_and_legacy_aliases_are_exact(self) -> None:
+        inst = _precedence_chain_instance()
+        expected_legacy = {
+            "traditional": ("pairwise", "direct"),
+            "staircase": ("sparse_suffix", "distance_closure"),
+        }
+        for mode, expected in expected_legacy.items():
+            legacy_model = B2BSATModel(inst, precedence_mode=mode)
+            independent_model = B2BSATModel(
+                inst,
+                precedence_encoding=expected[0],
+                precedence_graph=expected[1],
+            )
+            artifacts = legacy_model.build_base_cnf()
+            independent_artifacts = independent_model.build_base_cnf()
+            self.assertEqual(
+                (artifacts.precedence_encoding, artifacts.precedence_graph),
+                expected,
+            )
+            self.assertEqual(artifacts.precedence_mode, mode)
+            self.assertEqual(
+                artifacts.cnf.clauses,
+                independent_artifacts.cnf.clauses,
+            )
+
+        for precedence_encoding, precedence_graph in PRECEDENCE_CELLS:
+            artifacts = B2BSATModel(
+                inst,
+                precedence_encoding=precedence_encoding,
+                precedence_graph=precedence_graph,
+            ).build_base_cnf()
+            self.assertEqual(artifacts.precedence_encoding, precedence_encoding)
+            self.assertEqual(artifacts.precedence_graph, precedence_graph)
+            self.assertEqual(
+                artifacts.precedence_configuration,
+                f"{precedence_encoding}+{precedence_graph}",
+            )
+
+        with self.assertRaises(ValueError):
+            B2BSATModel(inst, precedence_encoding="pairwise")
+        with self.assertRaises(ValueError):
+            B2BSATModel(
+                inst,
+                precedence_mode="traditional",
+                precedence_encoding="sparse_suffix",
+                precedence_graph="direct",
+            )
+        with self.assertRaises(ValueError):
+            B2BSATModel(
+                inst,
+                precedence_encoding="support",
+                precedence_graph="direct",
+            )
+        with self.assertRaises(ValueError):
+            B2BSATModel(
+                inst,
+                precedence_encoding="pairwise",
+                precedence_graph="source_closure",
+            )
+
+    def test_distance_closure_adds_the_distance_two_relation_to_both_encodings(self) -> None:
+        inst = _precedence_chain_instance()
+        pairwise_direct = B2BSATModel(
+            inst,
+            precedence_encoding="pairwise",
+            precedence_graph="direct",
+            encoding_variant="basic",
+            domain_mode="full",
+        )
+        pairwise_closure = B2BSATModel(
+            inst,
+            precedence_encoding="pairwise",
+            precedence_graph="distance_closure",
+            encoding_variant="basic",
+            domain_mode="full",
+        )
+        direct_artifacts = pairwise_direct.build_base_cnf()
+        closure_artifacts = pairwise_closure.build_base_cnf()
+
+        self.assertEqual(direct_artifacts.precedence_relation_edges, 2)
+        self.assertEqual(closure_artifacts.precedence_relation_edges, 3)
+        self.assertGreater(
+            closure_artifacts.precedence_pairwise_clauses,
+            direct_artifacts.precedence_pairwise_clauses,
+        )
+        distance_two_clause = (
+            -pairwise_closure.x(0, 1),
+            -pairwise_closure.x(2, 2),
+        )
+        self.assertIn(
+            distance_two_clause,
+            {tuple(clause) for clause in closure_artifacts.cnf.clauses},
+        )
+        self.assertNotIn(
+            (
+                -pairwise_direct.x(0, 1),
+                -pairwise_direct.x(2, 2),
+            ),
+            {tuple(clause) for clause in direct_artifacts.cnf.clauses},
+        )
+
+        sparse_direct = B2BSATModel(
+            inst,
+            precedence_encoding="sparse_suffix",
+            precedence_graph="direct",
+            encoding_variant="basic",
+            domain_mode="full",
+        ).build_base_cnf()
+        sparse_closure = B2BSATModel(
+            inst,
+            precedence_encoding="sparse_suffix",
+            precedence_graph="distance_closure",
+            encoding_variant="basic",
+            domain_mode="full",
+        ).build_base_cnf()
+        self.assertEqual(sparse_direct.precedence_relation_edges, 2)
+        self.assertEqual(sparse_closure.precedence_relation_edges, 3)
+        self.assertEqual(sparse_direct.precedence_pairwise_clauses, 0)
+        self.assertEqual(sparse_closure.precedence_pairwise_clauses, 0)
+        self.assertGreater(sparse_direct.precedence_sparse_link_clauses, 0)
+        self.assertGreater(sparse_closure.precedence_unique_suffix_cuts, 0)
+
+    def test_all_optimizers_accept_the_two_new_factorial_cells(self) -> None:
+        inst = _restricted_instance()
+        new_cells = (
+            ("pairwise", "distance_closure"),
+            ("sparse_suffix", "direct"),
+        )
+        for precedence_encoding, precedence_graph in new_cells:
+            solvers = [
+                B2BMaxSATSolver(
+                    inst,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                    encoding_variant="imp12+",
+                    domain_mode="reduced",
+                ),
+                B2BMultipleSATSolver(
+                    inst,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                    encoding_variant="imp12+",
+                    solver_name="glucose",
+                    domain_mode="reduced",
+                ),
+                B2BIncrementalSATSolver(
+                    inst,
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                    encoding_variant="imp12+",
+                    solver_name="glucose",
+                    domain_mode="reduced",
+                ),
+            ]
+            objectives = []
+            for solver in solvers:
+                result = solver.solve()
+                with self.subTest(
+                    precedence_encoding=precedence_encoding,
+                    precedence_graph=precedence_graph,
+                    solver=type(solver).__name__,
+                ):
+                    self.assertEqual(result["status"], "OPTIMAL")
+                    self.assertEqual(result["validation_errors"], [])
+                    self.assertEqual(
+                        result["precedence_encoding"], precedence_encoding
+                    )
+                    self.assertEqual(result["precedence_graph"], precedence_graph)
+                objectives.append(result["objective_value"])
+            self.assertEqual(objectives, [objectives[0]] * len(objectives))
 
     def test_unknown_domain_mode_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

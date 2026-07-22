@@ -21,6 +21,8 @@ from Multiple_SAT import B2BMultipleSATSolver
 VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
 SOLVERS = ["incremental", "multiple", "maxsat"]
 PRECEDENCE_MODES = ["traditional", "staircase"]
+PRECEDENCE_ENCODINGS = ["pairwise", "sparse_suffix"]
+PRECEDENCE_GRAPHS = ["direct", "distance_closure"]
 DOMAIN_MODES = ["full", "reduced"]
 MEMORY_SAMPLE_INTERVAL_SECONDS = 0.05
 QUEUE_GRACE_SECONDS = 1.0
@@ -47,7 +49,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--precedence-mode",
         choices=[*PRECEDENCE_MODES, "both"],
-        default="both",
+        help="deprecated composite alias; use the independent P/G flags",
+    )
+    parser.add_argument(
+        "--precedence-encoding",
+        choices=[*PRECEDENCE_ENCODINGS, "both"],
+        help="P factor; defaults to both",
+    )
+    parser.add_argument(
+        "--precedence-graph",
+        choices=[*PRECEDENCE_GRAPHS, "both"],
+        help="G factor; defaults to both",
     )
     parser.add_argument(
         "--encoding-variant",
@@ -79,11 +91,59 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.precedence_mode is not None and (
+        args.precedence_encoding is not None or args.precedence_graph is not None
+    ):
+        parser.error(
+            "--precedence-mode cannot be combined with independent P/G flags"
+        )
     return args
 
 
 def selected(choice: str, values: list[str], all_name: str = "all") -> list[str]:
     return values if choice == all_name else [choice]
+
+
+def precedence_configurations(args: argparse.Namespace) -> list[tuple[str, str]]:
+    """Return controlled P×G cells or the requested deprecated composites."""
+
+    if args.precedence_mode is not None:
+        legacy = {
+            "traditional": ("pairwise", "direct"),
+            "staircase": ("sparse_suffix", "distance_closure"),
+        }
+        modes = selected(args.precedence_mode, PRECEDENCE_MODES, "both")
+        return [legacy[mode] for mode in modes]
+
+    encodings = selected(
+        args.precedence_encoding or "both",
+        PRECEDENCE_ENCODINGS,
+        "both",
+    )
+    graphs = selected(
+        args.precedence_graph or "both",
+        PRECEDENCE_GRAPHS,
+        "both",
+    )
+    return [
+        (precedence_encoding, precedence_graph)
+        for precedence_encoding in encodings
+        for precedence_graph in graphs
+    ]
+
+
+def legacy_precedence_mode(
+    precedence_encoding: str,
+    precedence_graph: str,
+) -> str:
+    if (precedence_encoding, precedence_graph) == ("pairwise", "direct"):
+        return "traditional"
+    if (precedence_encoding, precedence_graph) == (
+        "sparse_suffix",
+        "distance_closure",
+    ):
+        return "staircase"
+    return "factorial"
 
 
 def collect_instances(instance: str | None, data_dir: str) -> list[Path]:
@@ -152,6 +212,10 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "objective_participants": serialize_list(
             tuple(participant + 1 for participant in artifacts.objective_participants)
         ),
+        "precedence_mode": artifacts.precedence_mode,
+        "precedence_encoding": artifacts.precedence_encoding,
+        "precedence_graph": artifacts.precedence_graph,
+        "precedence_configuration": artifacts.precedence_configuration,
         "domain_mode": artifacts.domain_mode,
         "full_schedule_candidates": artifacts.full_schedule_candidates,
         "unary_eligible_schedule_candidates": (
@@ -176,6 +240,14 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "precedence_direct_edges": artifacts.precedence_direct_edges,
         "precedence_closure_edges": artifacts.precedence_transitive_edges,
         "precedence_max_distance": artifacts.precedence_max_distance,
+        "precedence_relation_edges": artifacts.precedence_relation_edges,
+        "precedence_pairwise_clauses": artifacts.precedence_pairwise_clauses,
+        "precedence_sparse_link_clauses": (
+            artifacts.precedence_sparse_link_clauses
+        ),
+        "precedence_unique_suffix_cuts": (
+            artifacts.precedence_unique_suffix_cuts
+        ),
         "enabled_constraints": " | ".join(artifacts.enabled_constraints),
         "maxsat_backend_preference": getattr(solver_object, "backend", ""),
         "resolved_uwrmaxsat_bin": str(
@@ -188,7 +260,8 @@ def _result_payload(
     result: dict[str, Any],
     *,
     solver_name: str,
-    precedence_mode: str,
+    precedence_encoding: str,
+    precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
     runtime_seconds: float,
@@ -202,7 +275,15 @@ def _result_payload(
         "solver_binary": result.get("solver_binary", ""),
         "solver_message": result.get("solver_message", ""),
         "maxsat_backend_preference": result.get("maxsat_backend_preference", ""),
-        "precedence_mode": precedence_mode,
+        "precedence_mode": result.get(
+            "precedence_mode",
+            legacy_precedence_mode(precedence_encoding, precedence_graph),
+        ),
+        "precedence_encoding": precedence_encoding,
+        "precedence_graph": precedence_graph,
+        "precedence_configuration": (
+            f"{precedence_encoding}+{precedence_graph}"
+        ),
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
@@ -245,7 +326,8 @@ def _result_payload(
 def _worker(
     solver_name: str,
     instance_path: str,
-    precedence_mode: str,
+    precedence_encoding: str,
+    precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
     verbose: bool,
@@ -255,7 +337,8 @@ def _worker(
     try:
         solver_object = _solver_class(solver_name)(
             instance_or_path=instance_path,
-            precedence_mode=precedence_mode,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
         )
@@ -265,7 +348,8 @@ def _worker(
             _result_payload(
                 result,
                 solver_name=solver_name,
-                precedence_mode=precedence_mode,
+                precedence_encoding=precedence_encoding,
+                precedence_graph=precedence_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
                 runtime_seconds=time.perf_counter() - started,
@@ -278,7 +362,14 @@ def _worker(
                 "status": "ERROR",
                 "sat_result": "ERROR",
                 "solver": solver_name,
-                "precedence_mode": precedence_mode,
+                "precedence_mode": legacy_precedence_mode(
+                    precedence_encoding, precedence_graph
+                ),
+                "precedence_encoding": precedence_encoding,
+                "precedence_graph": precedence_graph,
+                "precedence_configuration": (
+                    f"{precedence_encoding}+{precedence_graph}"
+                ),
                 "encoding_variant": encoding_variant,
                 "domain_mode": domain_mode,
                 "runtime_seconds": round(time.perf_counter() - started, 6),
@@ -370,7 +461,8 @@ def _terminal_payload(
     status: str,
     *,
     solver_name: str,
-    precedence_mode: str,
+    precedence_encoding: str,
+    precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
     runtime_seconds: float,
@@ -379,7 +471,14 @@ def _terminal_payload(
         "status": status,
         "sat_result": status_to_sat_result(status),
         "solver": solver_name,
-        "precedence_mode": precedence_mode,
+        "precedence_mode": legacy_precedence_mode(
+            precedence_encoding, precedence_graph
+        ),
+        "precedence_encoding": precedence_encoding,
+        "precedence_graph": precedence_graph,
+        "precedence_configuration": (
+            f"{precedence_encoding}+{precedence_graph}"
+        ),
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
@@ -393,7 +492,8 @@ def _terminal_payload(
 def run_with_timeout(
     solver_name: str,
     instance_path: Path,
-    precedence_mode: str,
+    precedence_encoding: str,
+    precedence_graph: str,
     encoding_variant: str,
     domain_mode: str,
     timeout_seconds: float,
@@ -406,7 +506,8 @@ def run_with_timeout(
         args=(
             solver_name,
             str(instance_path),
-            precedence_mode,
+            precedence_encoding,
+            precedence_graph,
             encoding_variant,
             domain_mode,
             verbose,
@@ -437,7 +538,8 @@ def run_with_timeout(
         result = _terminal_payload(
             "TIMEOUT",
             solver_name=solver_name,
-            precedence_mode=precedence_mode,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
             runtime_seconds=time.perf_counter() - started,
@@ -453,7 +555,8 @@ def run_with_timeout(
             result = _terminal_payload(
                 "ERROR",
                 solver_name=solver_name,
-                precedence_mode=precedence_mode,
+                precedence_encoding=precedence_encoding,
+                precedence_graph=precedence_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
                 runtime_seconds=time.perf_counter() - started,
@@ -496,6 +599,9 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "maxsat_backend_preference",
         "resolved_uwrmaxsat_bin",
         "precedence_mode",
+        "precedence_encoding",
+        "precedence_graph",
+        "precedence_configuration",
         "encoding_variant",
         "domain_mode",
         "objective",
@@ -522,6 +628,10 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "precedence_direct_edges",
         "precedence_closure_edges",
         "precedence_max_distance",
+        "precedence_relation_edges",
+        "precedence_pairwise_clauses",
+        "precedence_sparse_link_clauses",
+        "precedence_unique_suffix_cuts",
         "participant_internal_idle_slots",
         "busy_participants_per_slot",
         "assignment",
@@ -564,11 +674,12 @@ def format_table_cell(result: dict[str, Any]) -> str:
 
 
 def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
-    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     for result in results:
         key = (
             result["instance"],
-            result["precedence_mode"],
+            result["precedence_encoding"],
+            result["precedence_graph"],
             result["solver"],
             result["domain_mode"],
         )
@@ -576,9 +687,9 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
             key,
             {
                 "instance": result["instance"],
-                "staircase": (
-                    "yes" if result["precedence_mode"] == "staircase" else "no"
-                ),
+                "precedence_encoding": result["precedence_encoding"],
+                "precedence_graph": result["precedence_graph"],
+                "precedence_configuration": result["precedence_configuration"],
                 "solver": result["solver"],
                 "objective": "IdleRange(P*)",
                 "domain_mode": result["domain_mode"],
@@ -594,14 +705,17 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
         key=lambda row: (
             row["instance"],
             row["domain_mode"],
+            row["precedence_encoding"],
+            row["precedence_graph"],
             row["solver"],
-            row["staircase"],
         )
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = [
         "instance",
-        "staircase",
+        "precedence_encoding",
+        "precedence_graph",
+        "precedence_configuration",
         "solver",
         "objective",
         "domain_mode",
@@ -622,13 +736,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     solvers = selected(args.solver, SOLVERS)
-    precedence_modes = selected(args.precedence_mode, PRECEDENCE_MODES, "both")
+    precedence_cells = precedence_configurations(args)
     variants = selected(args.encoding_variant, VARIANTS)
     domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
     total_runs = (
         len(instances)
         * len(solvers)
-        * len(precedence_modes)
+        * len(precedence_cells)
         * len(variants)
         * len(domain_modes)
     )
@@ -637,22 +751,31 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
     print(f"Domain mode(s): {', '.join(domain_modes)}")
+    print(
+        "Precedence P×G cell(s): "
+        + ", ".join(
+            f"{precedence_encoding}+{precedence_graph}"
+            for precedence_encoding, precedence_graph in precedence_cells
+        )
+    )
     for instance_path in instances:
         for domain_mode in domain_modes:
-            for precedence_mode in precedence_modes:
+            for precedence_encoding, precedence_graph in precedence_cells:
                 for solver_name in solvers:
                     for variant in variants:
                         current_run += 1
                         print(
                             f"[{current_run}/{total_runs}] {instance_path.stem} | "
                             f"{domain_mode} | {solver_name} | "
-                            f"{precedence_mode} | {variant}",
+                            f"P={precedence_encoding} | G={precedence_graph} | "
+                            f"{variant}",
                             flush=True,
                         )
                         result = run_with_timeout(
                             solver_name,
                             instance_path,
-                            precedence_mode,
+                            precedence_encoding,
+                            precedence_graph,
                             variant,
                             domain_mode,
                             args.timeout,

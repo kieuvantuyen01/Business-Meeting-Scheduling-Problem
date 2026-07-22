@@ -10,12 +10,21 @@ from pysat.card import CardEnc, EncType
 from pysat.formula import CNF, IDPool, WCNF
 
 PrecedenceMode = Literal["traditional", "staircase"]
+PrecedenceEncoding = Literal["pairwise", "sparse_suffix"]
+PrecedenceGraph = Literal["direct", "distance_closure"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
 DomainMode = Literal["full", "reduced"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
+VALID_PRECEDENCE_ENCODINGS = {"pairwise", "sparse_suffix"}
+VALID_PRECEDENCE_GRAPHS = {"direct", "distance_closure"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
 VALID_DOMAIN_MODES = {"full", "reduced"}
+
+LEGACY_PRECEDENCE_CONFIGURATIONS: dict[str, tuple[str, str]] = {
+    "traditional": ("pairwise", "direct"),
+    "staircase": ("sparse_suffix", "distance_closure"),
+}
 
 
 @dataclass(frozen=True)
@@ -126,6 +135,9 @@ class B2BModelArtifacts:
     n_clauses: int
     encoding_variant: str
     precedence_mode: str
+    precedence_encoding: str
+    precedence_graph: str
+    precedence_configuration: str
     domain_mode: str
     enabled_constraints: list[str]
     full_schedule_candidates: int
@@ -140,6 +152,10 @@ class B2BModelArtifacts:
     precedence_transitive_edges: int
     precedence_cycle_nodes: tuple[int, ...]
     precedence_max_distance: int
+    precedence_relation_edges: int
+    precedence_pairwise_clauses: int
+    precedence_sparse_link_clauses: int
+    precedence_unique_suffix_cuts: int
     objective_encoding: str
 
 # ---------------------------------------------------------------------------
@@ -579,6 +595,69 @@ def reduce_domains_with_precedence(
     return [sorted(domain) for domain in domains], initial_count, reduced_count
 
 
+def resolve_precedence_configuration(
+    precedence_mode: str | None,
+    precedence_encoding: str | None,
+    precedence_graph: str | None,
+    *,
+    default_mode: PrecedenceMode,
+) -> tuple[str, str, str]:
+    """Resolve independent P/G flags and the deprecated composite mode.
+
+    A caller must either provide both independent flags or neither. The legacy
+    modes remain accepted for API compatibility, but conflicting legacy and
+    independent values are rejected instead of being silently overridden.
+    """
+
+    if precedence_mode is not None:
+        if precedence_mode not in VALID_PRECEDENCE_MODES:
+            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
+        legacy_encoding, legacy_graph = LEGACY_PRECEDENCE_CONFIGURATIONS[
+            precedence_mode
+        ]
+        if (
+            precedence_encoding is not None
+            and precedence_encoding != legacy_encoding
+        ):
+            raise ValueError(
+                "precedence_mode conflicts with precedence_encoding: "
+                f"{precedence_mode!r} requires {legacy_encoding!r}"
+            )
+        if precedence_graph is not None and precedence_graph != legacy_graph:
+            raise ValueError(
+                "precedence_mode conflicts with precedence_graph: "
+                f"{precedence_mode!r} requires {legacy_graph!r}"
+            )
+        precedence_encoding = legacy_encoding
+        precedence_graph = legacy_graph
+    elif precedence_encoding is None and precedence_graph is None:
+        precedence_mode = default_mode
+        precedence_encoding, precedence_graph = (
+            LEGACY_PRECEDENCE_CONFIGURATIONS[default_mode]
+        )
+    elif precedence_encoding is None or precedence_graph is None:
+        raise ValueError(
+            "precedence_encoding and precedence_graph must be specified together"
+        )
+
+    if precedence_encoding not in VALID_PRECEDENCE_ENCODINGS:
+        raise ValueError(
+            f"Unknown precedence_encoding={precedence_encoding!r}"
+        )
+    if precedence_graph not in VALID_PRECEDENCE_GRAPHS:
+        raise ValueError(f"Unknown precedence_graph={precedence_graph!r}")
+
+    legacy_mode = next(
+        (
+            mode
+            for mode, configuration in LEGACY_PRECEDENCE_CONFIGURATIONS.items()
+            if configuration == (precedence_encoding, precedence_graph)
+        ),
+        "factorial",
+    )
+    return precedence_encoding, precedence_graph, legacy_mode
+
+
 # ---------------------------------------------------------------------------
 # Combined optimized MaxSAT/SAT encoding
 # ---------------------------------------------------------------------------
@@ -603,6 +682,11 @@ class B2BSATModel:
     This replaces per-idle-slot variables and quadratic sorting networks with a
     linear prefix/suffix span encoding and exact unary threshold literals.
 
+    ``precedence_encoding`` (P) and ``precedence_graph`` (G) are independent:
+    either encoding can consume either the direct distance-one relations or the
+    distance-labelled transitive closure. Domain preprocessing intentionally
+    uses the same distance closure for every P/G configuration.
+
     ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
     and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
     variables removed by the exact preprocessing fixpoint. Every other encoding
@@ -612,19 +696,36 @@ class B2BSATModel:
     def __init__(
         self,
         inst: B2BInstance,
-        precedence_mode: PrecedenceMode = "staircase",
+        precedence_mode: PrecedenceMode | None = None,
         encoding_variant: EncodingVariant = "imp12+",
         domain_mode: DomainMode = "reduced",
+        *,
+        precedence_encoding: PrecedenceEncoding | None = None,
+        precedence_graph: PrecedenceGraph | None = None,
     ) -> None:
-        if precedence_mode not in VALID_PRECEDENCE_MODES:
-            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
         if domain_mode not in VALID_DOMAIN_MODES:
             raise ValueError(f"Unknown domain_mode={domain_mode!r}")
 
+        (
+            resolved_precedence_encoding,
+            resolved_precedence_graph,
+            resolved_precedence_mode,
+        ) = resolve_precedence_configuration(
+            precedence_mode,
+            precedence_encoding,
+            precedence_graph,
+            default_mode="staircase",
+        )
+
         self.inst = inst
-        self.precedence_mode = precedence_mode
+        self.precedence_mode = resolved_precedence_mode
+        self.precedence_encoding = resolved_precedence_encoding
+        self.precedence_graph = resolved_precedence_graph
+        self.precedence_configuration = (
+            f"{self.precedence_encoding}+{self.precedence_graph}"
+        )
         self.encoding_variant = encoding_variant
         self.domain_mode = domain_mode
         self.objective_participants = tuple(
@@ -633,6 +734,15 @@ class B2BSATModel:
             if meeting_count >= 2
         )
         self.graph = build_precedence_graph(inst.precedences)
+        if self.precedence_graph == "direct":
+            self._precedence_distances = [
+                {pred: 1 for pred in predecessors}
+                for predecessors in self.graph.direct_predecessors
+            ]
+        else:
+            self._precedence_distances = [
+                dict(distances) for distances in self.graph.longest_distance
+            ]
         self._unary_eligible_slots = [
             sorted(original_eligible_slots(inst, meeting))
             for meeting in range(inst.n_meetings)
@@ -666,6 +776,9 @@ class B2BSATModel:
         self._clusters: list[list[int]] | None = None
         self._artifacts: B2BModelArtifacts | None = None
         self._precedence_sparse_suffixes: dict[int, dict[int, int]] = {}
+        self._precedence_pairwise_clauses = 0
+        self._precedence_sparse_link_clauses = 0
+        self._precedence_unique_suffix_cuts = 0
 
         self._schedule_vars: dict[tuple[int, int], int] = {}
         for meeting, slots in enumerate(self._eligible_slots):
@@ -859,7 +972,9 @@ class B2BSATModel:
         cnf = CNF()
         self.enabled_constraints = [
             "objective-only optimization: no hard upper bound on objective gap",
-            "distance-aware explicit E* bounds and cycle detection",
+            "P/G-independent distance-closure domain propagation and cycle detection",
+            "precedence configuration: "
+            f"P={self.precedence_encoding}, G={self.precedence_graph}",
         ]
         if self.domain_mode == "full":
             self.enabled_constraints.append(
@@ -898,6 +1013,9 @@ class B2BSATModel:
             n_clauses=len(cnf.clauses),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
+            precedence_encoding=self.precedence_encoding,
+            precedence_graph=self.precedence_graph,
+            precedence_configuration=self.precedence_configuration,
             domain_mode=self.domain_mode,
             enabled_constraints=list(self.enabled_constraints),
             full_schedule_candidates=self.full_schedule_candidates,
@@ -922,6 +1040,16 @@ class B2BSATModel:
             precedence_transitive_edges=self.graph.transitive_edge_count,
             precedence_cycle_nodes=self.graph.cycle_nodes,
             precedence_max_distance=self.graph.max_chain_distance,
+            precedence_relation_edges=sum(
+                len(distances) for distances in self._precedence_distances
+            ),
+            precedence_pairwise_clauses=self._precedence_pairwise_clauses,
+            precedence_sparse_link_clauses=(
+                self._precedence_sparse_link_clauses
+            ),
+            precedence_unique_suffix_cuts=(
+                self._precedence_unique_suffix_cuts
+            ),
             objective_encoding="linear first/last span with exact unary thresholds",
         )
         return self._artifacts
@@ -1038,7 +1166,7 @@ class B2BSATModel:
         meeting: int,
         cuts: set[int],
     ) -> dict[int, int]:
-        """Build exact suffix ORs only at cut positions actually queried by E*."""
+        """Build exact suffix ORs only at cuts queried by the selected graph."""
 
         cached = self._precedence_sparse_suffixes.get(meeting)
         if cached is not None:
@@ -1071,15 +1199,16 @@ class B2BSATModel:
         self._precedence_sparse_suffixes[meeting] = suffixes
         return suffixes
 
-    def _add_distance_sparse_ladder_precedences(self, cnf: CNF) -> None:
+    def _add_sparse_suffix_precedences(self, cnf: CNF) -> None:
         self.enabled_constraints.append(
-            "(28) sparse shared suffix-ladder precedence over distance-labelled E*"
+            "(28) SparseSuffix precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
         )
 
         links: list[tuple[int, int, int]] = []
         cuts_by_pred: dict[int, set[int]] = {}
 
-        for post, distances in enumerate(self.graph.longest_distance):
+        for post, distances in enumerate(self._precedence_distances):
             post_slots = self._eligible_slots[post]
             for pred, distance in sorted(distances.items()):
                 pred_slots = self._eligible_slots[pred]
@@ -1092,10 +1221,14 @@ class B2BSATModel:
                     post_lit = self.x(post, post_slot)
                     if split == 0:
                         cnf.append([-post_lit])
+                        self._precedence_sparse_link_clauses += 1
                     elif split < len(pred_slots):
                         cuts_by_pred.setdefault(pred, set()).add(split)
                         links.append((post_lit, pred, split))
 
+        self._precedence_unique_suffix_cuts = sum(
+            len(cuts) for cuts in cuts_by_pred.values()
+        )
         for pred, cuts in cuts_by_pred.items():
             self._build_sparse_precedence_suffixes(cnf, pred, cuts)
 
@@ -1104,19 +1237,27 @@ class B2BSATModel:
                 -post_lit,
                 -self._precedence_sparse_suffixes[pred][split],
             ])
+            self._precedence_sparse_link_clauses += 1
+
+    def _add_pairwise_precedences(self, cnf: CNF) -> None:
+        self.enabled_constraints.append(
+            "(28) Pairwise precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
+        )
+        for post, distances in enumerate(self._precedence_distances):
+            for pred, distance in sorted(distances.items()):
+                for pred_slot in self._eligible_slots[pred]:
+                    pred_lit = self.x(pred, pred_slot)
+                    for post_slot in self._eligible_slots[post]:
+                        if pred_slot + distance > post_slot:
+                            cnf.append([-pred_lit, -self.x(post, post_slot)])
+                            self._precedence_pairwise_clauses += 1
 
     def _add_precedences(self, cnf: CNF) -> None:
-        if self.precedence_mode == "traditional":
-            self.enabled_constraints.append("(28) traditional direct-edge precedence")
-            for post, preds in enumerate(self.graph.direct_predecessors):
-                for pred in preds:
-                    for pred_slot in self._eligible_slots[pred]:
-                        pred_lit = self.x(pred, pred_slot)
-                        for post_slot in self._eligible_slots[post]:
-                            if pred_slot >= post_slot:
-                                cnf.append([-pred_lit, -self.x(post, post_slot)])
+        if self.precedence_encoding == "pairwise":
+            self._add_pairwise_precedences(cnf)
             return
-        self._add_distance_sparse_ladder_precedences(cnf)
+        self._add_sparse_suffix_precedences(cnf)
 
     # Used-slot channeling and span objective --------------------------
 
@@ -1521,7 +1662,17 @@ def _main() -> None:
     parser.add_argument(
         "--precedence-mode",
         choices=sorted(VALID_PRECEDENCE_MODES),
-        default="staircase",
+        help="deprecated composite alias: traditional or staircase",
+    )
+    parser.add_argument(
+        "--precedence-encoding",
+        choices=sorted(VALID_PRECEDENCE_ENCODINGS),
+        help="P factor: pairwise or sparse_suffix",
+    )
+    parser.add_argument(
+        "--precedence-graph",
+        choices=sorted(VALID_PRECEDENCE_GRAPHS),
+        help="G factor: direct or distance_closure",
     )
     parser.add_argument(
         "--encoding-variant",
@@ -1537,6 +1688,16 @@ def _main() -> None:
     parser.add_argument("--write-wcnf", type=Path)
     parser.add_argument("--skip-meetingsx-validation", action="store_true")
     args = parser.parse_args()
+    if args.precedence_mode is not None and (
+        args.precedence_encoding is not None or args.precedence_graph is not None
+    ):
+        parser.error(
+            "--precedence-mode cannot be combined with independent P/G flags"
+        )
+    if (args.precedence_encoding is None) != (args.precedence_graph is None):
+        parser.error(
+            "--precedence-encoding and --precedence-graph must be used together"
+        )
 
     inst = read_instance(
         args.instance,
@@ -1545,6 +1706,8 @@ def _main() -> None:
     model = B2BSATModel(
         inst=inst,
         precedence_mode=args.precedence_mode,
+        precedence_encoding=args.precedence_encoding,
+        precedence_graph=args.precedence_graph,
         encoding_variant=args.encoding_variant,
         domain_mode=args.domain_mode,
     )
@@ -1553,6 +1716,9 @@ def _main() -> None:
     print(f"instance={inst.instance_name}")
     print(f"variant={artifacts.encoding_variant}")
     print(f"precedence_mode={artifacts.precedence_mode}")
+    print(f"precedence_encoding={artifacts.precedence_encoding}")
+    print(f"precedence_graph={artifacts.precedence_graph}")
+    print(f"precedence_configuration={artifacts.precedence_configuration}")
     print(f"domain_mode={artifacts.domain_mode}")
     print(
         "schedule_candidates="
@@ -1566,6 +1732,13 @@ def _main() -> None:
         f"direct:{artifacts.precedence_direct_edges}, "
         f"closure:{artifacts.precedence_transitive_edges}, "
         f"max_distance:{artifacts.precedence_max_distance}"
+    )
+    print(
+        "precedence_encoding_metrics="
+        f"relations:{artifacts.precedence_relation_edges}, "
+        f"pairwise_clauses:{artifacts.precedence_pairwise_clauses}, "
+        f"sparse_links:{artifacts.precedence_sparse_link_clauses}, "
+        f"unique_cuts:{artifacts.precedence_unique_suffix_cuts}"
     )
     print(
         "precedence_cycle_nodes="
