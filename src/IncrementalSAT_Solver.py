@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pysat.card import ITotalizer
 
 from B2B_Instance import B2BInstance, B2BSATModel, B2BSolutionStats, read_instance
+from SAT_Backend import (
+    create_sat_solver,
+    normalize_sat_backend,
+    sat_backend_label,
+    sat_backend_version,
+)
 
 
 def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
@@ -18,15 +23,9 @@ def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
 
 
 def _new_solver(clauses: list[list[int]], preferred: str = "cadical"):
-    """Create a SAT solver, falling back to Glucose3 when needed."""
+    """Create exactly the requested SAT backend without fallback."""
 
-    solvers = import_module("pysat.solvers")
-    if preferred == "glucose":
-        return solvers.Glucose3(bootstrap_with=clauses)
-    try:
-        return solvers.Cadical153(bootstrap_with=clauses)
-    except Exception:
-        return solvers.Glucose3(bootstrap_with=clauses)
+    return create_sat_solver(clauses, preferred)
 
 
 class B2BIncrementalSATSolver:
@@ -40,18 +39,39 @@ class B2BIncrementalSATSolver:
     def __init__(
         self,
         instance_or_path: B2BInstance | str | Path,
-        precedence_mode: str = "traditional",
+        precedence_mode: str | None = None,
         encoding_variant: str = "imp12+",
         solver_name: str = "cadical",
+        domain_mode: str = "reduced",
+        *,
+        precedence_encoding: str | None = None,
+        precedence_graph: str | None = None,
     ) -> None:
+        if (
+            precedence_mode is None
+            and precedence_encoding is None
+            and precedence_graph is None
+        ):
+            precedence_mode = "traditional"
         self.inst = _ensure_instance(instance_or_path)
         self.model = B2BSATModel(
             inst=self.inst,
             precedence_mode=precedence_mode,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
+            domain_mode=domain_mode,
         )
         self.artifacts = self.model.build_base_cnf()
-        self.solver_name = solver_name
+        self.solver_name = normalize_sat_backend(solver_name)
+        self.solver_backend = sat_backend_label(self.solver_name)
+        self.solver_version = sat_backend_version(self.solver_name)
+        self.n_optimizer_calls = 0
+        self.n_bound_encodings = 0
+        self.optimizer_added_variables_peak = 0
+        self.optimizer_added_clauses_peak = 0
+        self.optimizer_added_literals_peak = 0
+        self.optimizer_added_clauses_cumulative = 0
 
     def _pack_result(
         self,
@@ -65,8 +85,17 @@ class B2BIncrementalSATSolver:
         return {
             "status": status,
             "solver": "IncrementalSAT",
+            "solver_backend": self.solver_backend,
+            "solver_version": self.solver_version,
+            "sat_backend_preference": self.solver_name,
             "precedence_mode": self.artifacts.precedence_mode,
+            "precedence_encoding": self.artifacts.precedence_encoding,
+            "precedence_graph": self.artifacts.precedence_graph,
+            "precedence_configuration": (
+                self.artifacts.precedence_configuration
+            ),
             "encoding_variant": self.artifacts.encoding_variant,
+            "domain_mode": self.artifacts.domain_mode,
             "objective": self.artifacts.objective_name,
             "objective_participant_count": len(
                 self.artifacts.objective_participants
@@ -88,18 +117,58 @@ class B2BIncrementalSATSolver:
             "n_soft": 0,
             "n_soft_clauses": 0,
             "n_objective_lits": len(self.artifacts.objective_lits),
+            "full_schedule_candidates": (
+                self.artifacts.full_schedule_candidates
+            ),
+            "unary_eligible_schedule_candidates": (
+                self.artifacts.unary_eligible_schedule_candidates
+            ),
             "initial_schedule_candidates": (
                 self.artifacts.initial_schedule_candidates
             ),
             "reduced_schedule_candidates": (
                 self.artifacts.reduced_schedule_candidates
             ),
+            "active_schedule_candidates": (
+                self.artifacts.active_schedule_candidates
+            ),
+            "unary_removed_schedule_candidates": (
+                self.artifacts.unary_removed_schedule_candidates
+            ),
+            "preprocessing_removed_schedule_candidates": (
+                self.artifacts.preprocessing_removed_schedule_candidates
+            ),
+            "removed_schedule_candidates": (
+                self.artifacts.removed_schedule_candidates
+            ),
             "precedence_direct_edges": self.artifacts.precedence_direct_edges,
             "precedence_closure_edges": (
                 self.artifacts.precedence_transitive_edges
             ),
             "precedence_max_distance": self.artifacts.precedence_max_distance,
+            "precedence_relation_edges": (
+                self.artifacts.precedence_relation_edges
+            ),
+            "precedence_pairwise_clauses": (
+                self.artifacts.precedence_pairwise_clauses
+            ),
+            "precedence_sparse_link_clauses": (
+                self.artifacts.precedence_sparse_link_clauses
+            ),
+            "precedence_unique_suffix_cuts": (
+                self.artifacts.precedence_unique_suffix_cuts
+            ),
             "enabled_constraints": self.artifacts.enabled_constraints,
+            "n_optimizer_calls": self.n_optimizer_calls,
+            "n_bound_encodings": self.n_bound_encodings,
+            "optimizer_added_variables_peak": (
+                self.optimizer_added_variables_peak
+            ),
+            "optimizer_added_clauses_peak": self.optimizer_added_clauses_peak,
+            "optimizer_added_literals_peak": self.optimizer_added_literals_peak,
+            "optimizer_added_clauses_cumulative": (
+                self.optimizer_added_clauses_cumulative
+            ),
         }
 
     def _evaluate_sat_model(
@@ -120,8 +189,13 @@ class B2BIncrementalSATSolver:
         )
         return assignment, stats, checks
 
-    def solve(self, verbose: bool = False) -> dict[str, Any]:
+    def solve(
+        self,
+        verbose: bool = False,
+        incumbent_callback: Callable[[int], None] | None = None,
+    ) -> dict[str, Any]:
         with _new_solver(self.artifacts.cnf.clauses, self.solver_name) as solver:
+            self.n_optimizer_calls += 1
             if not solver.solve():
                 return self._pack_result("UNSAT", None, None)
 
@@ -133,6 +207,8 @@ class B2BIncrementalSATSolver:
                 return self._pack_result("ERROR", best_assignment, best_stats, checks)
 
             best_objective = best_stats.objective_gap
+            if incumbent_callback is not None:
+                incumbent_callback(best_objective)
             if verbose:
                 print(f"[IncrementalSAT] initial IdleRange(P*)={best_objective}")
             if best_objective == 0:
@@ -157,12 +233,25 @@ class B2BIncrementalSATSolver:
                 ubound=best_objective,
                 top_id=self.artifacts.n_vars,
             ) as totalizer:
+                self.n_bound_encodings = 1
+                self.optimizer_added_variables_peak = max(
+                    0,
+                    totalizer.top_id - self.artifacts.n_vars,
+                )
+                self.optimizer_added_clauses_peak = len(totalizer.cnf.clauses)
+                self.optimizer_added_literals_peak = sum(
+                    len(clause) for clause in totalizer.cnf.clauses
+                )
+                self.optimizer_added_clauses_cumulative = len(
+                    totalizer.cnf.clauses
+                )
                 solver.append_formula(totalizer.cnf.clauses)
                 low, high = 0, best_objective - 1
 
                 while low <= high:
                     bound = (low + high) // 2
                     # rhs[bound] means at least bound+1 objective literals are true.
+                    self.n_optimizer_calls += 1
                     satisfiable = solver.solve(assumptions=[-totalizer.rhs[bound]])
                     if verbose:
                         print(
@@ -188,6 +277,8 @@ class B2BIncrementalSATSolver:
                             )
                         best_assignment = candidate_assignment
                         best_stats = candidate_stats
+                        if incumbent_callback is not None:
+                            incumbent_callback(best_stats.objective_gap)
                         high = bound - 1
                     else:
                         low = bound + 1
@@ -209,16 +300,23 @@ class B2BIncrementalSATSolver:
 
 def solve_b2b(
     instance_or_path: B2BInstance | str | Path,
-    precedence_mode: str = "traditional",
+    precedence_mode: str | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
     solver_name: str = "cadical",
+    domain_mode: str = "reduced",
+    *,
+    precedence_encoding: str | None = None,
+    precedence_graph: str | None = None,
 ) -> dict[str, Any]:
     return B2BIncrementalSATSolver(
         instance_or_path=instance_or_path,
         precedence_mode=precedence_mode,
+        precedence_encoding=precedence_encoding,
+        precedence_graph=precedence_graph,
         encoding_variant=encoding_variant,
         solver_name=solver_name,
+        domain_mode=domain_mode,
     ).solve(verbose=verbose)
 
 
@@ -226,13 +324,27 @@ def solve_b2b_traditional(
     instance_or_path: B2BInstance | str | Path,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
+    domain_mode: str = "reduced",
 ) -> dict[str, Any]:
-    return solve_b2b(instance_or_path, "traditional", encoding_variant, verbose)
+    return solve_b2b(
+        instance_or_path=instance_or_path,
+        precedence_mode="traditional",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+    )
 
 
 def solve_b2b_staircase(
     instance_or_path: B2BInstance | str | Path,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
+    domain_mode: str = "reduced",
 ) -> dict[str, Any]:
-    return solve_b2b(instance_or_path, "staircase", encoding_variant, verbose)
+    return solve_b2b(
+        instance_or_path=instance_or_path,
+        precedence_mode="staircase",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+    )

@@ -109,6 +109,7 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
             inst,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
 
         self.assertEqual(result["status"], "OPTIMAL")
@@ -132,6 +133,7 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
                 inst,
                 precedence_mode="traditional",
                 encoding_variant="basic",
+                backend="rc2",
             ),
             B2BMultipleSATSolver(
                 inst,
@@ -177,6 +179,7 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
             inst,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
         self.assertEqual(result["status"], "OPTIMAL")
         self.assertEqual(result["objective_value"], brute_force_optimum)
@@ -188,6 +191,7 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
             inst,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
 
         self.assertEqual(result["status"], "OPTIMAL")

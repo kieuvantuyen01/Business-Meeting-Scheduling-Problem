@@ -10,10 +10,21 @@ from pysat.card import CardEnc, EncType
 from pysat.formula import CNF, IDPool, WCNF
 
 PrecedenceMode = Literal["traditional", "staircase"]
+PrecedenceEncoding = Literal["pairwise", "sparse_suffix"]
+PrecedenceGraph = Literal["direct", "distance_closure"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
+DomainMode = Literal["full", "reduced"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
+VALID_PRECEDENCE_ENCODINGS = {"pairwise", "sparse_suffix"}
+VALID_PRECEDENCE_GRAPHS = {"direct", "distance_closure"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
+VALID_DOMAIN_MODES = {"full", "reduced"}
+
+LEGACY_PRECEDENCE_CONFIGURATIONS: dict[str, tuple[str, str]] = {
+    "traditional": ("pairwise", "direct"),
+    "staircase": ("sparse_suffix", "distance_closure"),
+}
 
 
 @dataclass(frozen=True)
@@ -122,16 +133,37 @@ class B2BModelArtifacts:
     sorted_hole_lits_by_participant: list[list[int]]
     n_vars: int
     n_clauses: int
+    n_primary_variables: int
+    n_auxiliary_variables: int
+    n_hard_literals: int
+    max_hard_clause_length: int
+    n_unit_hard_clauses: int
+    n_binary_hard_clauses: int
+    n_ternary_hard_clauses: int
+    n_long_hard_clauses: int
     encoding_variant: str
     precedence_mode: str
+    precedence_encoding: str
+    precedence_graph: str
+    precedence_configuration: str
+    domain_mode: str
     enabled_constraints: list[str]
+    full_schedule_candidates: int
+    unary_eligible_schedule_candidates: int
     initial_schedule_candidates: int
     reduced_schedule_candidates: int
+    active_schedule_candidates: int
+    unary_removed_schedule_candidates: int
+    preprocessing_removed_schedule_candidates: int
     removed_schedule_candidates: int
     precedence_direct_edges: int
     precedence_transitive_edges: int
     precedence_cycle_nodes: tuple[int, ...]
     precedence_max_distance: int
+    precedence_relation_edges: int
+    precedence_pairwise_clauses: int
+    precedence_sparse_link_clauses: int
+    precedence_unique_suffix_cuts: int
     objective_encoding: str
 
 # ---------------------------------------------------------------------------
@@ -571,6 +603,69 @@ def reduce_domains_with_precedence(
     return [sorted(domain) for domain in domains], initial_count, reduced_count
 
 
+def resolve_precedence_configuration(
+    precedence_mode: str | None,
+    precedence_encoding: str | None,
+    precedence_graph: str | None,
+    *,
+    default_mode: PrecedenceMode,
+) -> tuple[str, str, str]:
+    """Resolve independent P/G flags and the deprecated composite mode.
+
+    A caller must either provide both independent flags or neither. The legacy
+    modes remain accepted for API compatibility, but conflicting legacy and
+    independent values are rejected instead of being silently overridden.
+    """
+
+    if precedence_mode is not None:
+        if precedence_mode not in VALID_PRECEDENCE_MODES:
+            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
+        legacy_encoding, legacy_graph = LEGACY_PRECEDENCE_CONFIGURATIONS[
+            precedence_mode
+        ]
+        if (
+            precedence_encoding is not None
+            and precedence_encoding != legacy_encoding
+        ):
+            raise ValueError(
+                "precedence_mode conflicts with precedence_encoding: "
+                f"{precedence_mode!r} requires {legacy_encoding!r}"
+            )
+        if precedence_graph is not None and precedence_graph != legacy_graph:
+            raise ValueError(
+                "precedence_mode conflicts with precedence_graph: "
+                f"{precedence_mode!r} requires {legacy_graph!r}"
+            )
+        precedence_encoding = legacy_encoding
+        precedence_graph = legacy_graph
+    elif precedence_encoding is None and precedence_graph is None:
+        precedence_mode = default_mode
+        precedence_encoding, precedence_graph = (
+            LEGACY_PRECEDENCE_CONFIGURATIONS[default_mode]
+        )
+    elif precedence_encoding is None or precedence_graph is None:
+        raise ValueError(
+            "precedence_encoding and precedence_graph must be specified together"
+        )
+
+    if precedence_encoding not in VALID_PRECEDENCE_ENCODINGS:
+        raise ValueError(
+            f"Unknown precedence_encoding={precedence_encoding!r}"
+        )
+    if precedence_graph not in VALID_PRECEDENCE_GRAPHS:
+        raise ValueError(f"Unknown precedence_graph={precedence_graph!r}")
+
+    legacy_mode = next(
+        (
+            mode
+            for mode, configuration in LEGACY_PRECEDENCE_CONFIGURATIONS.items()
+            if configuration == (precedence_encoding, precedence_graph)
+        ),
+        "factorial",
+    )
+    return precedence_encoding, precedence_graph, legacy_mode
+
+
 # ---------------------------------------------------------------------------
 # Combined optimized MaxSAT/SAT encoding
 # ---------------------------------------------------------------------------
@@ -594,39 +689,104 @@ class B2BSATModel:
 
     This replaces per-idle-slot variables and quadratic sorting networks with a
     linear prefix/suffix span encoding and exact unary threshold literals.
+
+    ``precedence_encoding`` (P) and ``precedence_graph`` (G) are independent:
+    either encoding can consume either the direct distance-one relations or the
+    distance-labelled transitive closure. Domain preprocessing intentionally
+    uses the same distance closure for every P/G configuration.
+
+    ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
+    and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
+    variables removed by the exact preprocessing fixpoint. Every other encoding
+    component follows the same code path in both modes.
     """
 
     def __init__(
         self,
         inst: B2BInstance,
-        precedence_mode: PrecedenceMode = "staircase",
+        precedence_mode: PrecedenceMode | None = None,
         encoding_variant: EncodingVariant = "imp12+",
+        domain_mode: DomainMode = "reduced",
+        *,
+        precedence_encoding: PrecedenceEncoding | None = None,
+        precedence_graph: PrecedenceGraph | None = None,
     ) -> None:
-        if precedence_mode not in VALID_PRECEDENCE_MODES:
-            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
+        if domain_mode not in VALID_DOMAIN_MODES:
+            raise ValueError(f"Unknown domain_mode={domain_mode!r}")
+
+        (
+            resolved_precedence_encoding,
+            resolved_precedence_graph,
+            resolved_precedence_mode,
+        ) = resolve_precedence_configuration(
+            precedence_mode,
+            precedence_encoding,
+            precedence_graph,
+            default_mode="staircase",
+        )
 
         self.inst = inst
-        self.precedence_mode = precedence_mode
+        self.precedence_mode = resolved_precedence_mode
+        self.precedence_encoding = resolved_precedence_encoding
+        self.precedence_graph = resolved_precedence_graph
+        self.precedence_configuration = (
+            f"{self.precedence_encoding}+{self.precedence_graph}"
+        )
         self.encoding_variant = encoding_variant
+        self.domain_mode = domain_mode
         self.objective_participants = tuple(
             participant
             for participant, meeting_count in enumerate(inst.n_meetings_business)
             if meeting_count >= 2
         )
         self.graph = build_precedence_graph(inst.precedences)
+        if self.precedence_graph == "direct":
+            self._precedence_distances = [
+                {pred: 1 for pred in predecessors}
+                for predecessors in self.graph.direct_predecessors
+            ]
+        else:
+            self._precedence_distances = [
+                dict(distances) for distances in self.graph.longest_distance
+            ]
+        self._unary_eligible_slots = [
+            sorted(original_eligible_slots(inst, meeting))
+            for meeting in range(inst.n_meetings)
+        ]
         (
-            self._eligible_slots,
-            self.initial_schedule_candidates,
+            self._reduced_slots,
+            reduction_initial_count,
             self.reduced_schedule_candidates,
         ) = reduce_domains_with_precedence(inst, self.graph)
+        self.full_schedule_candidates = inst.n_meetings * inst.n_total_slots
+        self.unary_eligible_schedule_candidates = sum(
+            len(slots) for slots in self._unary_eligible_slots
+        )
+        if reduction_initial_count != self.unary_eligible_schedule_candidates:
+            raise AssertionError("domain-reduction input disagrees with unary domains")
+
+        # Backward-compatible name: historically this field counted candidates
+        # after session/fixed/forbidden filtering, before exact propagation.
+        self.initial_schedule_candidates = self.unary_eligible_schedule_candidates
+        if domain_mode == "full":
+            all_slots = list(range(inst.n_total_slots))
+            self._eligible_slots = [list(all_slots) for _ in range(inst.n_meetings)]
+        else:
+            self._eligible_slots = [list(slots) for slots in self._reduced_slots]
+        self.active_schedule_candidates = sum(
+            len(slots) for slots in self._eligible_slots
+        )
 
         self.vpool = IDPool()
         self.enabled_constraints: list[str] = []
         self._clusters: list[list[int]] | None = None
         self._artifacts: B2BModelArtifacts | None = None
         self._precedence_sparse_suffixes: dict[int, dict[int, int]] = {}
+        self._precedence_pairwise_clauses = 0
+        self._precedence_sparse_link_clauses = 0
+        self._precedence_unique_suffix_cuts = 0
 
         self._schedule_vars: dict[tuple[int, int], int] = {}
         for meeting, slots in enumerate(self._eligible_slots):
@@ -650,13 +810,27 @@ class B2BSATModel:
     # Public variable/domain helpers -----------------------------------
 
     def eligible_slots(self, m: int) -> list[int]:
+        """Return slots for which schedule variables exist in the active mode."""
+
         return list(self._eligible_slots[m])
+
+    def unary_eligible_slots(self, m: int) -> list[int]:
+        """Return slots satisfying session, fixed, and forbidden restrictions."""
+
+        return list(self._unary_eligible_slots[m])
+
+    def reduced_slots(self, m: int) -> list[int]:
+        """Return the exact preprocessing fixpoint independently of active mode."""
+
+        return list(self._reduced_slots[m])
 
     def x(self, m: int, t: int) -> int:
         try:
             return self._schedule_vars[m, t]
         except KeyError as exc:
-            raise KeyError(f"schedule({m},{t}) was removed by preprocessing") from exc
+            raise KeyError(
+                f"schedule({m},{t}) does not exist in {self.domain_mode} mode"
+            ) from exc
 
     def x_or_none(self, m: int, t: int) -> int | None:
         return self._schedule_vars.get((m, t))
@@ -806,9 +980,19 @@ class B2BSATModel:
         cnf = CNF()
         self.enabled_constraints = [
             "objective-only optimization: no hard upper bound on objective gap",
-            "unary domain filtering + participant matching GAC + slot saturation",
-            "distance-aware explicit E* bounds and cycle detection",
+            "P/G-independent distance-closure domain propagation and cycle detection",
+            "precedence configuration: "
+            f"P={self.precedence_encoding}, G={self.precedence_graph}",
         ]
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "Full Domain MxT schedule variables + explicit unary exclusions"
+            )
+        else:
+            self.enabled_constraints.append(
+                "Reduced Domain variables after unary filtering + matching GAC + "
+                "slot saturation"
+            )
 
         if self.graph.cycle_nodes:
             cnf.append([])
@@ -825,6 +1009,10 @@ class B2BSATModel:
         threshold_lits = self._add_span_break_thresholds(cnf)
         gap_lits = self._add_gap_objective(cnf, threshold_lits)
 
+        n_vars = max(self.vpool.top, cnf.nv)
+        n_primary_variables = len(self._schedule_vars)
+        clause_lengths = [len(clause) for clause in cnf.clauses]
+
         self._artifacts = B2BModelArtifacts(
             cnf=cnf,
             objective_lits=gap_lits,
@@ -833,13 +1021,38 @@ class B2BSATModel:
             objective_gap_lits=gap_lits,
             hole_lits_by_participant=[[] for _ in range(self.inst.n_business)],
             sorted_hole_lits_by_participant=threshold_lits,
-            n_vars=max(self.vpool.top, cnf.nv),
+            n_vars=n_vars,
             n_clauses=len(cnf.clauses),
+            n_primary_variables=n_primary_variables,
+            n_auxiliary_variables=n_vars - n_primary_variables,
+            n_hard_literals=sum(clause_lengths),
+            max_hard_clause_length=max(clause_lengths, default=0),
+            n_unit_hard_clauses=sum(length == 1 for length in clause_lengths),
+            n_binary_hard_clauses=sum(length == 2 for length in clause_lengths),
+            n_ternary_hard_clauses=sum(length == 3 for length in clause_lengths),
+            n_long_hard_clauses=sum(length >= 4 for length in clause_lengths),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
+            precedence_encoding=self.precedence_encoding,
+            precedence_graph=self.precedence_graph,
+            precedence_configuration=self.precedence_configuration,
+            domain_mode=self.domain_mode,
             enabled_constraints=list(self.enabled_constraints),
+            full_schedule_candidates=self.full_schedule_candidates,
+            unary_eligible_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+            ),
             initial_schedule_candidates=self.initial_schedule_candidates,
             reduced_schedule_candidates=self.reduced_schedule_candidates,
+            active_schedule_candidates=self.active_schedule_candidates,
+            unary_removed_schedule_candidates=(
+                self.full_schedule_candidates
+                - self.unary_eligible_schedule_candidates
+            ),
+            preprocessing_removed_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+                - self.reduced_schedule_candidates
+            ),
             removed_schedule_candidates=(
                 self.initial_schedule_candidates - self.reduced_schedule_candidates
             ),
@@ -847,6 +1060,16 @@ class B2BSATModel:
             precedence_transitive_edges=self.graph.transitive_edge_count,
             precedence_cycle_nodes=self.graph.cycle_nodes,
             precedence_max_distance=self.graph.max_chain_distance,
+            precedence_relation_edges=sum(
+                len(distances) for distances in self._precedence_distances
+            ),
+            precedence_pairwise_clauses=self._precedence_pairwise_clauses,
+            precedence_sparse_link_clauses=(
+                self._precedence_sparse_link_clauses
+            ),
+            precedence_unique_suffix_cuts=(
+                self._precedence_unique_suffix_cuts
+            ),
             objective_encoding="linear first/last span with exact unary thresholds",
         )
         return self._artifacts
@@ -866,12 +1089,22 @@ class B2BSATModel:
 
     def _add_assignment(self, cnf: CNF) -> None:
         self.enabled_constraints.append(
-            "(20),(22)-(27) exactly once over fully reduced domains"
+            f"(20),(22)-(27) exactly once over {self.domain_mode} domains"
         )
         for meeting, slots in enumerate(self._eligible_slots):
             self._add_exactly_one_commander(
                 cnf, [self.x(meeting, slot) for slot in slots]
             )
+
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "(22)-(27) session/fixed/forbidden exclusions as hard unit clauses"
+            )
+            for meeting, unary_slots in enumerate(self._unary_eligible_slots):
+                allowed = set(unary_slots)
+                for slot in range(self.inst.n_total_slots):
+                    if slot not in allowed:
+                        cnf.append([-self.x(meeting, slot)])
 
     def _add_participant_collision(self, cnf: CNF) -> None:
         self.enabled_constraints.append("(19) participant atMost-one per slot")
@@ -886,7 +1119,9 @@ class B2BSATModel:
                     self._add_pairwise_atmost_one(cnf, lits)
 
     def _add_capacity_over_meetings(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(21) capacity over reduced schedule variables")
+        self.enabled_constraints.append(
+            f"(21) capacity over {self.domain_mode} schedule variables"
+        )
         for slot in range(self.inst.n_total_slots):
             lits = [
                 lit
@@ -951,7 +1186,7 @@ class B2BSATModel:
         meeting: int,
         cuts: set[int],
     ) -> dict[int, int]:
-        """Build exact suffix ORs only at cut positions actually queried by E*."""
+        """Build exact suffix ORs only at cuts queried by the selected graph."""
 
         cached = self._precedence_sparse_suffixes.get(meeting)
         if cached is not None:
@@ -984,15 +1219,16 @@ class B2BSATModel:
         self._precedence_sparse_suffixes[meeting] = suffixes
         return suffixes
 
-    def _add_distance_sparse_ladder_precedences(self, cnf: CNF) -> None:
+    def _add_sparse_suffix_precedences(self, cnf: CNF) -> None:
         self.enabled_constraints.append(
-            "(28) sparse shared suffix-ladder precedence over distance-labelled E*"
+            "(28) SparseSuffix precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
         )
 
         links: list[tuple[int, int, int]] = []
         cuts_by_pred: dict[int, set[int]] = {}
 
-        for post, distances in enumerate(self.graph.longest_distance):
+        for post, distances in enumerate(self._precedence_distances):
             post_slots = self._eligible_slots[post]
             for pred, distance in sorted(distances.items()):
                 pred_slots = self._eligible_slots[pred]
@@ -1005,10 +1241,14 @@ class B2BSATModel:
                     post_lit = self.x(post, post_slot)
                     if split == 0:
                         cnf.append([-post_lit])
+                        self._precedence_sparse_link_clauses += 1
                     elif split < len(pred_slots):
                         cuts_by_pred.setdefault(pred, set()).add(split)
                         links.append((post_lit, pred, split))
 
+        self._precedence_unique_suffix_cuts = sum(
+            len(cuts) for cuts in cuts_by_pred.values()
+        )
         for pred, cuts in cuts_by_pred.items():
             self._build_sparse_precedence_suffixes(cnf, pred, cuts)
 
@@ -1017,19 +1257,27 @@ class B2BSATModel:
                 -post_lit,
                 -self._precedence_sparse_suffixes[pred][split],
             ])
+            self._precedence_sparse_link_clauses += 1
+
+    def _add_pairwise_precedences(self, cnf: CNF) -> None:
+        self.enabled_constraints.append(
+            "(28) Pairwise precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
+        )
+        for post, distances in enumerate(self._precedence_distances):
+            for pred, distance in sorted(distances.items()):
+                for pred_slot in self._eligible_slots[pred]:
+                    pred_lit = self.x(pred, pred_slot)
+                    for post_slot in self._eligible_slots[post]:
+                        if pred_slot + distance > post_slot:
+                            cnf.append([-pred_lit, -self.x(post, post_slot)])
+                            self._precedence_pairwise_clauses += 1
 
     def _add_precedences(self, cnf: CNF) -> None:
-        if self.precedence_mode == "traditional":
-            self.enabled_constraints.append("(28) traditional direct-edge precedence")
-            for post, preds in enumerate(self.graph.direct_predecessors):
-                for pred in preds:
-                    for pred_slot in self._eligible_slots[pred]:
-                        pred_lit = self.x(pred, pred_slot)
-                        for post_slot in self._eligible_slots[post]:
-                            if pred_slot >= post_slot:
-                                cnf.append([-pred_lit, -self.x(post, post_slot)])
+        if self.precedence_encoding == "pairwise":
+            self._add_pairwise_precedences(cnf)
             return
-        self._add_distance_sparse_ladder_precedences(cnf)
+        self._add_sparse_suffix_precedences(cnf)
 
     # Used-slot channeling and span objective --------------------------
 
@@ -1173,7 +1421,7 @@ class B2BSATModel:
         return thresholds_by_participant
 
     def _add_implied_constraint_1(self, cnf: CNF, participant: int) -> None:
-        marker = "(43) exactly |Mp| reduced usedSlot variables"
+        marker = f"(43) exactly |Mp| {self.domain_mode} usedSlot variables"
         if marker not in self.enabled_constraints:
             self.enabled_constraints.append(marker)
         lits = [
@@ -1434,17 +1682,42 @@ def _main() -> None:
     parser.add_argument(
         "--precedence-mode",
         choices=sorted(VALID_PRECEDENCE_MODES),
-        default="staircase",
+        help="deprecated composite alias: traditional or staircase",
+    )
+    parser.add_argument(
+        "--precedence-encoding",
+        choices=sorted(VALID_PRECEDENCE_ENCODINGS),
+        help="P factor: pairwise or sparse_suffix",
+    )
+    parser.add_argument(
+        "--precedence-graph",
+        choices=sorted(VALID_PRECEDENCE_GRAPHS),
+        help="G factor: direct or distance_closure",
     )
     parser.add_argument(
         "--encoding-variant",
         choices=sorted(VALID_ENCODING_VARIANTS),
         default="imp12+",
     )
+    parser.add_argument(
+        "--domain-mode",
+        choices=sorted(VALID_DOMAIN_MODES),
+        default="reduced",
+    )
     parser.add_argument("--write-cnf", type=Path)
     parser.add_argument("--write-wcnf", type=Path)
     parser.add_argument("--skip-meetingsx-validation", action="store_true")
     args = parser.parse_args()
+    if args.precedence_mode is not None and (
+        args.precedence_encoding is not None or args.precedence_graph is not None
+    ):
+        parser.error(
+            "--precedence-mode cannot be combined with independent P/G flags"
+        )
+    if (args.precedence_encoding is None) != (args.precedence_graph is None):
+        parser.error(
+            "--precedence-encoding and --precedence-graph must be used together"
+        )
 
     inst = read_instance(
         args.instance,
@@ -1453,24 +1726,39 @@ def _main() -> None:
     model = B2BSATModel(
         inst=inst,
         precedence_mode=args.precedence_mode,
+        precedence_encoding=args.precedence_encoding,
+        precedence_graph=args.precedence_graph,
         encoding_variant=args.encoding_variant,
+        domain_mode=args.domain_mode,
     )
     artifacts = model.build_base_cnf()
 
     print(f"instance={inst.instance_name}")
     print(f"variant={artifacts.encoding_variant}")
     print(f"precedence_mode={artifacts.precedence_mode}")
+    print(f"precedence_encoding={artifacts.precedence_encoding}")
+    print(f"precedence_graph={artifacts.precedence_graph}")
+    print(f"precedence_configuration={artifacts.precedence_configuration}")
+    print(f"domain_mode={artifacts.domain_mode}")
     print(
         "schedule_candidates="
-        f"{artifacts.reduced_schedule_candidates}/"
-        f"{artifacts.initial_schedule_candidates} "
-        f"(removed={artifacts.removed_schedule_candidates})"
+        f"active:{artifacts.active_schedule_candidates}, "
+        f"full:{artifacts.full_schedule_candidates}, "
+        f"unary_eligible:{artifacts.unary_eligible_schedule_candidates}, "
+        f"reduced:{artifacts.reduced_schedule_candidates}"
     )
     print(
         "precedence_edges="
         f"direct:{artifacts.precedence_direct_edges}, "
         f"closure:{artifacts.precedence_transitive_edges}, "
         f"max_distance:{artifacts.precedence_max_distance}"
+    )
+    print(
+        "precedence_encoding_metrics="
+        f"relations:{artifacts.precedence_relation_edges}, "
+        f"pairwise_clauses:{artifacts.precedence_pairwise_clauses}, "
+        f"sparse_links:{artifacts.precedence_sparse_link_clauses}, "
+        f"unique_cuts:{artifacts.precedence_unique_suffix_cuts}"
     )
     print(
         "precedence_cycle_nodes="
