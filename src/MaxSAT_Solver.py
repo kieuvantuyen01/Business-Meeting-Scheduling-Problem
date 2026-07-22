@@ -130,6 +130,14 @@ def _parse_uwrmaxsat_output(output: str) -> tuple[str | None, int | None, list[i
     return status, cost, model
 
 
+def _subprocess_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
 class B2BMaxSATSolver:
     """MaxSAT optimization of the internal-idle-slot range over P*.
 
@@ -297,7 +305,7 @@ class B2BMaxSATSolver:
             "objective_value": (
                 stats.objective_gap if stats is not None else solver_cost
             ),
-            "proven_optimum": solver_cost,
+            "proven_optimum": solver_cost if status == "OPTIMAL" else None,
             "solver_cost": solver_cost,
             "assignment": assignment,
             "stats": stats,
@@ -427,17 +435,42 @@ class B2BMaxSATSolver:
                     check=False,
                     start_new_session=(os.name != "nt"),
                 )
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as exc:
                 message = (
                     "UWrMaxSAT timed out after "
                     f"{self.uwrmaxsat_timeout:g} seconds"
                 )
                 if verbose:
                     print(f"[MaxSAT/UWrMaxSAT] {message}")
+
+                partial_output = "\n".join(
+                    part
+                    for part in (
+                        _subprocess_text(exc.stdout),
+                        _subprocess_text(exc.stderr),
+                    )
+                    if part
+                )
+                _, partial_cost, partial_model = _parse_uwrmaxsat_output(
+                    partial_output
+                )
+                partial_assignment: list[int] | None = None
+                partial_stats: B2BSolutionStats | None = None
+                partial_checks: list[str] = []
+                if partial_model and partial_cost is not None:
+                    (
+                        partial_assignment,
+                        partial_stats,
+                        partial_checks,
+                    ) = self._validate_model(partial_model, partial_cost)
+                if partial_cost is not None:
+                    message += f"; best returned cost={partial_cost}"
                 return self._pack_result(
                     "TIMEOUT",
-                    None,
-                    None,
+                    partial_assignment,
+                    partial_stats,
+                    partial_checks,
+                    solver_cost=partial_cost,
                     solver_backend="UWrMaxSAT",
                     solver_message=message,
                     solver_command=shlex.join(command),

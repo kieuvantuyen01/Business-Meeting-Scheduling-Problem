@@ -14,6 +14,7 @@ except ImportError:  # Memory remains optional for benchmark portability.
     psutil = None
 
 from IncrementalSAT_Solver import B2BIncrementalSATSolver
+from B2B_Instance import read_instance
 from MaxSAT_Solver import (
     B2BMaxSATSolver,
     UWRMAXSAT_NOT_FOUND_MESSAGE,
@@ -22,6 +23,12 @@ from MaxSAT_Solver import (
 )
 from Multiple_SAT import B2BMultipleSATSolver
 from SAT_Backend import require_sat_backend
+from Excel_Results import (
+    FORMULA_SCOPE,
+    RUNTIME_SCOPE,
+    safe_workbook_name,
+    write_instance_workbook,
+)
 
 
 VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
@@ -34,6 +41,17 @@ MAXSAT_BACKENDS = ["uwrmaxsat", "rc2"]
 SAT_BACKENDS = ["cadical", "glucose"]
 MEMORY_SAMPLE_INTERVAL_SECONDS = 0.05
 QUEUE_GRACE_SECONDS = 1.0
+MAXSAT_REPORTING_MARGIN_SECONDS = 0.25
+DOMAIN_CODES = {"full": "F", "reduced": "R"}
+PRECEDENCE_ENCODING_CODES = {"pairwise": "PW", "sparse_suffix": "SS"}
+PRECEDENCE_GRAPH_CODES = {"direct": "DE", "distance_closure": "DC"}
+VARIANT_CODES = {
+    "basic": "IC0",
+    "imp1": "IC1",
+    "imp2": "IC2",
+    "imp12": "IC12",
+    "imp12+": "IC12PC",
+}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -115,6 +133,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--long-csv",
         help="detailed CSV path; defaults to <csv-stem>_detailed.csv",
     )
+    parser.add_argument(
+        "--excel-dir",
+        help=(
+            "directory for one <instance>.xlsx workbook per instance; "
+            "defaults to <csv-parent>/excel"
+        ),
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
     if args.timeout <= 0:
@@ -172,6 +197,65 @@ def legacy_precedence_mode(
     ):
         return "staircase"
     return "factorial"
+
+
+def configuration_metadata(
+    *,
+    solver_name: str,
+    precedence_encoding: str,
+    precedence_graph: str,
+    encoding_variant: str,
+    domain_mode: str,
+    maxsat_backend: str,
+    sat_backend: str,
+) -> dict[str, str]:
+    """Return stable human and machine identifiers for one factor tuple."""
+
+    if solver_name == "maxsat":
+        engine_code = "UW" if maxsat_backend == "uwrmaxsat" else "RC2"
+        optimization_engine = (
+            "UWrMaxSAT" if maxsat_backend == "uwrmaxsat" else "RC2"
+        )
+        backend_code = maxsat_backend
+    elif solver_name == "multiple":
+        engine_code = "NIS"
+        optimization_engine = "NonIncrementalSAT"
+        backend_code = sat_backend
+    elif solver_name == "incremental":
+        engine_code = "IS"
+        optimization_engine = "IncrementalSAT"
+        backend_code = sat_backend
+    else:
+        raise ValueError(f"Unknown solver: {solver_name}")
+
+    domain_code = DOMAIN_CODES[domain_mode]
+    encoding_code = PRECEDENCE_ENCODING_CODES[precedence_encoding]
+    graph_code = PRECEDENCE_GRAPH_CODES[precedence_graph]
+    implied_code = VARIANT_CODES[encoding_variant]
+    label = "-".join(
+        (domain_code, encoding_code, graph_code, engine_code)
+    )
+    identifier = "__".join(
+        (
+            "cfg1",
+            f"d-{domain_code.lower()}",
+            f"e-{encoding_code.lower()}",
+            f"g-{graph_code.lower()}",
+            f"s-{engine_code.lower()}",
+            f"be-{backend_code.lower()}",
+            "b-st",
+            "o-irp",
+            f"i-{implied_code.lower()}",
+        )
+    )
+    return {
+        "configuration_label": label,
+        "configuration_id": identifier,
+        "optimization_engine": optimization_engine,
+        "idle_encoding": "span_threshold",
+        "objective_code": "IRP",
+        "implied_constraints_code": implied_code,
+    }
 
 
 def collect_instances(instance: str | None, data_dir: str) -> list[Path]:
@@ -263,7 +347,12 @@ def _solver_class(solver_name: str):
     raise ValueError(f"Unknown solver: {solver_name}")
 
 
-def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
+def _formula_metadata(
+    solver_name: str,
+    solver_object: Any,
+    *,
+    model_build_seconds: float,
+) -> dict[str, Any]:
     artifacts = solver_object.artifacts
     n_soft = len(artifacts.objective_lits) if solver_name == "maxsat" else 0
     return {
@@ -297,6 +386,8 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "n_hard_clauses": artifacts.n_clauses,
         "n_soft_clauses": n_soft,
         "n_total_clauses": artifacts.n_clauses + n_soft,
+        "formula_scope": FORMULA_SCOPE,
+        "model_build_seconds": round(model_build_seconds, 6),
         "n_objective_lits": len(artifacts.objective_lits),
         "precedence_direct_edges": artifacts.precedence_direct_edges,
         "precedence_closure_edges": artifacts.precedence_transitive_edges,
@@ -334,11 +425,15 @@ def _result_payload(
     encoding_variant: str,
     domain_mode: str,
     runtime_seconds: float,
+    model_build_seconds: float,
+    solve_and_validate_seconds: float,
 ) -> dict[str, Any]:
     stats = result.get("stats")
+    status = result.get("status", "ERROR")
+    runtime_censored = str(status).upper() == "TIMEOUT"
     payload = {
         "message_type": "result",
-        "status": result.get("status", "ERROR"),
+        "status": status,
         "solver": solver_name,
         "solver_backend": result.get("solver_backend", result.get("solver", "")),
         "solver_binary": result.get("solver_binary", ""),
@@ -360,8 +455,14 @@ def _result_payload(
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
+        "model_build_seconds": round(model_build_seconds, 6),
+        "solve_and_validate_seconds": round(solve_and_validate_seconds, 6),
+        "runtime_scope": RUNTIME_SCOPE,
+        "runtime_censored": runtime_censored,
+        "formula_scope": FORMULA_SCOPE,
         "objective": result.get("objective", "internal_idle_slot_range_pstar"),
         "objective_value": result.get("objective_value"),
+        "best_value": result.get("objective_value"),
         "proven_optimum": result.get("proven_optimum"),
         "objective_participant_count": result.get(
             "objective_participant_count"
@@ -413,8 +514,9 @@ def _worker(
 ) -> None:
     started = time.perf_counter()
     try:
+        instance = read_instance(instance_path)
         solver_kwargs: dict[str, Any] = {
-            "instance_or_path": instance_path,
+            "instance_or_path": instance,
             "precedence_encoding": precedence_encoding,
             "precedence_graph": precedence_graph,
             "encoding_variant": encoding_variant,
@@ -429,11 +531,25 @@ def _worker(
             )
         else:
             solver_kwargs["solver_name"] = sat_backend
-        solver_object = _solver_class(solver_name)(
-            **solver_kwargs
+        solver_object = _solver_class(solver_name)(**solver_kwargs)
+        model_ready = time.perf_counter()
+        model_build_seconds = model_ready - started
+        if solver_name == "maxsat" and maxsat_backend == "uwrmaxsat":
+            solver_object.uwrmaxsat_timeout = max(
+                0.001,
+                solver_timeout
+                - model_build_seconds
+                - MAXSAT_REPORTING_MARGIN_SECONDS,
+            )
+        output.put(
+            _formula_metadata(
+                solver_name,
+                solver_object,
+                model_build_seconds=model_build_seconds,
+            )
         )
-        output.put(_formula_metadata(solver_name, solver_object))
         result = solver_object.solve(verbose=verbose)
+        finished = time.perf_counter()
         output.put(
             _result_payload(
                 result,
@@ -442,7 +558,9 @@ def _worker(
                 precedence_graph=precedence_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
-                runtime_seconds=time.perf_counter() - started,
+                runtime_seconds=finished - started,
+                model_build_seconds=model_build_seconds,
+                solve_and_validate_seconds=finished - model_ready,
             )
         )
     except BaseException as exc:
@@ -463,7 +581,11 @@ def _worker(
                 "encoding_variant": encoding_variant,
                 "domain_mode": domain_mode,
                 "runtime_seconds": round(time.perf_counter() - started, 6),
+                "runtime_scope": RUNTIME_SCOPE,
+                "runtime_censored": False,
+                "formula_scope": FORMULA_SCOPE,
                 "objective": "internal_idle_slot_range_pstar",
+                "best_value": None,
                 "maxsat_backend_preference": (
                     maxsat_backend if solver_name == "maxsat" else ""
                 ),
@@ -580,7 +702,14 @@ def _terminal_payload(
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
+        "runtime_scope": (
+            "configured wall-clock cutoff measured by the controller; "
+            "the worker returned no completed validated result"
+        ),
+        "runtime_censored": status == "TIMEOUT",
+        "formula_scope": FORMULA_SCOPE,
         "objective": "internal_idle_slot_range_pstar",
+        "best_value": None,
         "maxsat_backend_preference": (
             maxsat_backend if solver_name == "maxsat" else ""
         ),
@@ -681,6 +810,33 @@ def run_with_timeout(
 
     for key, value in metadata.items():
         result.setdefault(key, value)
+    if result.get("runtime_censored") and result.get("model_build_seconds") is not None:
+        result.setdefault(
+            "solve_and_validate_seconds",
+            round(
+                max(
+                    0.0,
+                    float(result["runtime_seconds"])
+                    - float(result["model_build_seconds"]),
+                ),
+                6,
+            ),
+        )
+    result.update(
+        configuration_metadata(
+            solver_name=solver_name,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
+            encoding_variant=encoding_variant,
+            domain_mode=domain_mode,
+            maxsat_backend=maxsat_backend,
+            sat_backend=sat_backend,
+        )
+    )
+    result.setdefault("formula_scope", FORMULA_SCOPE)
+    result.setdefault("runtime_scope", RUNTIME_SCOPE)
+    result.setdefault("runtime_censored", False)
+    result.setdefault("best_value", result.get("objective_value"))
     result["peak_memory_mb"] = (
         None
         if peak_rss_bytes is None
@@ -699,12 +855,40 @@ def _detailed_csv_path(csv_path: str) -> Path:
     return path.with_name(f"{path.stem}_detailed{suffix}")
 
 
+def _excel_output_dir(excel_dir: str | None, csv_path: str) -> Path:
+    if excel_dir:
+        return Path(excel_dir)
+    return Path(csv_path).parent / "excel"
+
+
+def write_instance_excel(
+    output_dir: Path,
+    instance_name: str,
+    results: list[dict[str, Any]],
+) -> Path:
+    return write_instance_workbook(
+        output_dir / safe_workbook_name(instance_name),
+        instance_name,
+        results,
+    )
+
+
 def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
     preferred_fields = [
         "instance",
+        "configuration_label",
+        "configuration_id",
+        "optimization_engine",
+        "idle_encoding",
+        "objective_code",
+        "implied_constraints_code",
         "sat_result",
         "status",
         "runtime_seconds",
+        "model_build_seconds",
+        "solve_and_validate_seconds",
+        "runtime_scope",
+        "runtime_censored",
         "peak_memory_mb",
         "memory_metric",
         "solver",
@@ -725,6 +909,7 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "domain_mode",
         "objective",
         "objective_value",
+        "best_value",
         "proven_optimum",
         "objective_participant_count",
         "objective_participants",
@@ -743,6 +928,7 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "n_hard_clauses",
         "n_soft_clauses",
         "n_total_clauses",
+        "formula_scope",
         "n_objective_lits",
         "precedence_direct_edges",
         "precedence_closure_edges",
@@ -877,6 +1063,7 @@ def main(argv: list[str] | None = None) -> int:
         * len(domain_modes)
     )
     results: list[dict[str, Any]] = []
+    excel_output_dir = _excel_output_dir(args.excel_dir, args.csv)
     current_run = 0
 
     print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
@@ -893,6 +1080,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     for instance_path in instances:
+        instance_results: list[dict[str, Any]] = []
         for domain_mode in domain_modes:
             for precedence_encoding, precedence_graph in precedence_cells:
                 for solver_name in solvers:
@@ -921,12 +1109,20 @@ def main(argv: list[str] | None = None) -> int:
                         )
                         result = {"instance": instance_path.stem, **result}
                         results.append(result)
+                        instance_results.append(result)
+                        workbook_path = write_instance_excel(
+                            excel_output_dir,
+                            instance_path.stem,
+                            instance_results,
+                        )
                         print(
                             f"    {result['sat_result']} | "
                             f"IdleRange(P*)={result.get('idle_range_pstar')} | "
-                            f"time={result.get('runtime_seconds')}s",
+                            f"time={result.get('runtime_seconds')}s | "
+                            f"config={result.get('configuration_label')}",
                             flush=True,
                         )
+        print(f"    Excel: {workbook_path}", flush=True)
 
     detailed_path = Path(args.long_csv) if args.long_csv else _detailed_csv_path(args.csv)
     aggregate_path = Path(args.csv)
@@ -934,6 +1130,7 @@ def main(argv: list[str] | None = None) -> int:
     write_aggregate_csv(aggregate_path, results)
     print(f"Detailed CSV: {detailed_path}")
     print(f"Aggregate CSV: {aggregate_path}")
+    print(f"Per-instance Excel directory: {excel_output_dir}")
 
     errors = sum(result["sat_result"] == "ERROR" for result in results)
     timeouts = sum(result["sat_result"] == "TIMEOUT" for result in results)

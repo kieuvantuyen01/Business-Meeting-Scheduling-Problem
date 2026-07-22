@@ -117,6 +117,37 @@ the selected backend, version, executable path, UWrMaxSAT binary SHA-256, and
 command line. `--maxsat-backend rc2` and `--sat-backend glucose` remain explicit
 development-only choices and must not be mixed with production results.
 
+## Per-instance Excel logs
+
+In addition to the aggregate and detailed CSV files, `Main.py` writes one
+workbook named `<instance>.xlsx` per instance. By default the files are placed
+in an `excel` directory next to `--csv`; use `--excel-dir` to select another
+directory. The workbook is atomically refreshed after every completed
+configuration, so results already obtained survive an interrupted batch.
+
+The `Results` sheet has one row per configuration and records, among other
+fields, the stable configuration label/ID, variables, total/hard/soft clauses,
+status, best returned objective value, proven optimum, memory, and timing. For
+MaxSAT, hard and soft clause counts are separate. The `README` sheet defines
+the measurement scopes.
+
+`runtime_seconds` is end-to-end monotonic wall time measured inside the worker:
+from immediately before reading/parsing the `.dzn` file through formula
+construction, optimization, decoding, and independent validation. It excludes
+worker-process startup and CSV/XLSX export. `model_build_seconds` and
+`solve_and_validate_seconds` retain the two main components. A timeout is a
+right-censored controller cutoff and is marked by `runtime_censored=TRUE`.
+This start point matches the historical `ORG_old.py` total timer, which begins
+immediately before `read_input()`. The 2022 paper labels its table entries as
+solving times but does not state a more precise timer boundary, so both the
+explicit end-to-end value and its components are retained instead of silently
+equating the two definitions.
+
+Formula size fields describe the shared base CNF. MaxSAT's
+`n_total_clauses` additionally includes the unit soft objective clauses. SAT
+optimizer-specific bound/totalizer clauses are not included in these base
+formula counts and this scope is recorded in every row.
+
 Build and inspect one CNF/WCNF directly:
 
 ```bash

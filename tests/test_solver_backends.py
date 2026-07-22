@@ -101,6 +101,28 @@ class MaxSATBackendTests(unittest.TestCase):
             self.assertEqual(len(result["solver_binary_sha256"]), 64)
             self.assertIn(str(binary.resolve()), result["solver_command"])
 
+    def test_uwrmaxsat_timeout_preserves_the_best_returned_cost(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="uwr_timeout_test_") as temp:
+            binary = Path(temp) / "uwrmaxsat"
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o755)
+            solver = B2BMaxSATSolver(INSTANCE, uwrmaxsat_bin=binary)
+            timeout = subprocess.TimeoutExpired(
+                cmd=[str(binary)],
+                timeout=1.0,
+                output="o 7\n",
+                stderr="",
+            )
+
+            with patch("MaxSAT_Solver.subprocess.run", side_effect=timeout):
+                result = solver.solve()
+
+            self.assertEqual(result["status"], "TIMEOUT")
+            self.assertEqual(result["objective_value"], 7)
+            self.assertEqual(result["solver_cost"], 7)
+            self.assertIsNone(result["proven_optimum"])
+            self.assertIn("best returned cost=7", result["solver_message"])
+
     def test_explicit_missing_path_is_not_replaced_from_path(self) -> None:
         with patch("MaxSAT_Solver.shutil.which", return_value="/other/uwrmaxsat"):
             self.assertIsNone(resolve_uwrmaxsat_binary("/missing/uwrmaxsat"))
