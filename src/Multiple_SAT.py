@@ -43,12 +43,14 @@ class B2BMultipleSATSolver:
         precedence_mode: str = "traditional",
         encoding_variant: str = "imp12+",
         solver_name: str = "cadical",
+        domain_mode: str = "reduced",
     ) -> None:
         self.inst = _ensure_instance(instance_or_path)
         self.model = B2BSATModel(
             inst=self.inst,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
+            domain_mode=domain_mode,
         )
         self.artifacts = self.model.build_base_cnf()
         self.solver_name = solver_name
@@ -67,6 +69,7 @@ class B2BMultipleSATSolver:
             "solver": "MultipleSAT",
             "precedence_mode": self.artifacts.precedence_mode,
             "encoding_variant": self.artifacts.encoding_variant,
+            "domain_mode": self.artifacts.domain_mode,
             "objective": self.artifacts.objective_name,
             "objective_participant_count": len(
                 self.artifacts.objective_participants
@@ -88,11 +91,29 @@ class B2BMultipleSATSolver:
             "n_soft": 0,
             "n_soft_clauses": 0,
             "n_objective_lits": len(self.artifacts.objective_lits),
+            "full_schedule_candidates": (
+                self.artifacts.full_schedule_candidates
+            ),
+            "unary_eligible_schedule_candidates": (
+                self.artifacts.unary_eligible_schedule_candidates
+            ),
             "initial_schedule_candidates": (
                 self.artifacts.initial_schedule_candidates
             ),
             "reduced_schedule_candidates": (
                 self.artifacts.reduced_schedule_candidates
+            ),
+            "active_schedule_candidates": (
+                self.artifacts.active_schedule_candidates
+            ),
+            "unary_removed_schedule_candidates": (
+                self.artifacts.unary_removed_schedule_candidates
+            ),
+            "preprocessing_removed_schedule_candidates": (
+                self.artifacts.preprocessing_removed_schedule_candidates
+            ),
+            "removed_schedule_candidates": (
+                self.artifacts.removed_schedule_candidates
             ),
             "precedence_direct_edges": self.artifacts.precedence_direct_edges,
             "precedence_closure_edges": (
@@ -212,12 +233,14 @@ def solve_b2b(
     encoding_variant: str = "imp12+",
     verbose: bool = False,
     solver_name: str = "cadical",
+    domain_mode: str = "reduced",
 ) -> dict[str, Any]:
     return B2BMultipleSATSolver(
         instance_or_path=instance_or_path,
         precedence_mode=precedence_mode,
         encoding_variant=encoding_variant,
         solver_name=solver_name,
+        domain_mode=domain_mode,
     ).solve(verbose=verbose)
 
 
@@ -225,13 +248,27 @@ def solve_b2b_traditional(
     instance_or_path: B2BInstance | str | Path,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
+    domain_mode: str = "reduced",
 ) -> dict[str, Any]:
-    return solve_b2b(instance_or_path, "traditional", encoding_variant, verbose)
+    return solve_b2b(
+        instance_or_path=instance_or_path,
+        precedence_mode="traditional",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+    )
 
 
 def solve_b2b_staircase(
     instance_or_path: B2BInstance | str | Path,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
+    domain_mode: str = "reduced",
 ) -> dict[str, Any]:
-    return solve_b2b(instance_or_path, "staircase", encoding_variant, verbose)
+    return solve_b2b(
+        instance_or_path=instance_or_path,
+        precedence_mode="staircase",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+    )

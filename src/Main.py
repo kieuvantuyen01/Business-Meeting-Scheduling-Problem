@@ -21,6 +21,7 @@ from Multiple_SAT import B2BMultipleSATSolver
 VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
 SOLVERS = ["incremental", "multiple", "maxsat"]
 PRECEDENCE_MODES = ["traditional", "staircase"]
+DOMAIN_MODES = ["full", "reduced"]
 MEMORY_SAMPLE_INTERVAL_SECONDS = 0.05
 QUEUE_GRACE_SECONDS = 1.0
 
@@ -29,7 +30,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Benchmark the conference model: minimize IdleRange(P*) over "
-            "exact reduced meeting-slot domains."
+            "Full and/or Reduced meeting-slot domains."
         )
     )
     parser.add_argument("--instance", help="single .dzn instance")
@@ -52,6 +53,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--encoding-variant",
         choices=[*VARIANTS, "all"],
         default="all",
+    )
+    parser.add_argument(
+        "--domain-mode",
+        choices=[*DOMAIN_MODES, "both"],
+        default="both",
+        help="Full=MxT variables; Reduced=exact preprocessing fixpoint",
     )
     parser.add_argument(
         "--timeout",
@@ -138,8 +145,6 @@ def _solver_class(solver_name: str):
 def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
     artifacts = solver_object.artifacts
     n_soft = len(artifacts.objective_lits) if solver_name == "maxsat" else 0
-    initial = artifacts.initial_schedule_candidates
-    reduced = artifacts.reduced_schedule_candidates
     return {
         "message_type": "metadata",
         "objective": artifacts.objective_name,
@@ -147,10 +152,22 @@ def _formula_metadata(solver_name: str, solver_object: Any) -> dict[str, Any]:
         "objective_participants": serialize_list(
             tuple(participant + 1 for participant in artifacts.objective_participants)
         ),
-        "domain_mode": "reduced",
-        "initial_schedule_candidates": initial,
-        "reduced_schedule_candidates": reduced,
-        "removed_schedule_candidates": initial - reduced,
+        "domain_mode": artifacts.domain_mode,
+        "full_schedule_candidates": artifacts.full_schedule_candidates,
+        "unary_eligible_schedule_candidates": (
+            artifacts.unary_eligible_schedule_candidates
+        ),
+        "initial_schedule_candidates": artifacts.initial_schedule_candidates,
+        "reduced_schedule_candidates": artifacts.reduced_schedule_candidates,
+        "active_schedule_candidates": artifacts.active_schedule_candidates,
+        "unary_removed_schedule_candidates": (
+            artifacts.unary_removed_schedule_candidates
+        ),
+        "preprocessing_removed_schedule_candidates": (
+            artifacts.preprocessing_removed_schedule_candidates
+        ),
+        # Backward-compatible alias: removals made by exact preprocessing.
+        "removed_schedule_candidates": artifacts.removed_schedule_candidates,
         "n_vars": artifacts.n_vars,
         "n_hard_clauses": artifacts.n_clauses,
         "n_soft_clauses": n_soft,
@@ -169,6 +186,7 @@ def _result_payload(
     solver_name: str,
     precedence_mode: str,
     encoding_variant: str,
+    domain_mode: str,
     runtime_seconds: float,
 ) -> dict[str, Any]:
     stats = result.get("stats")
@@ -178,6 +196,7 @@ def _result_payload(
         "solver": solver_name,
         "precedence_mode": precedence_mode,
         "encoding_variant": encoding_variant,
+        "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
         "objective": result.get("objective", "internal_idle_slot_range_pstar"),
         "objective_value": result.get("objective_value"),
@@ -220,6 +239,7 @@ def _worker(
     instance_path: str,
     precedence_mode: str,
     encoding_variant: str,
+    domain_mode: str,
     verbose: bool,
     output: mp.Queue[Any],
 ) -> None:
@@ -229,6 +249,7 @@ def _worker(
             instance_or_path=instance_path,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
+            domain_mode=domain_mode,
         )
         output.put(_formula_metadata(solver_name, solver_object))
         result = solver_object.solve(verbose=verbose)
@@ -238,6 +259,7 @@ def _worker(
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
                 encoding_variant=encoding_variant,
+                domain_mode=domain_mode,
                 runtime_seconds=time.perf_counter() - started,
             )
         )
@@ -250,6 +272,7 @@ def _worker(
                 "solver": solver_name,
                 "precedence_mode": precedence_mode,
                 "encoding_variant": encoding_variant,
+                "domain_mode": domain_mode,
                 "runtime_seconds": round(time.perf_counter() - started, 6),
                 "objective": "internal_idle_slot_range_pstar",
                 "validation_errors": "",
@@ -300,6 +323,7 @@ def _terminal_payload(
     solver_name: str,
     precedence_mode: str,
     encoding_variant: str,
+    domain_mode: str,
     runtime_seconds: float,
 ) -> dict[str, Any]:
     return {
@@ -308,6 +332,7 @@ def _terminal_payload(
         "solver": solver_name,
         "precedence_mode": precedence_mode,
         "encoding_variant": encoding_variant,
+        "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
         "objective": "internal_idle_slot_range_pstar",
         "validation_errors": "",
@@ -321,6 +346,7 @@ def run_with_timeout(
     instance_path: Path,
     precedence_mode: str,
     encoding_variant: str,
+    domain_mode: str,
     timeout_seconds: float,
     verbose: bool,
 ) -> dict[str, Any]:
@@ -333,6 +359,7 @@ def run_with_timeout(
             str(instance_path),
             precedence_mode,
             encoding_variant,
+            domain_mode,
             verbose,
             output,
         ),
@@ -364,6 +391,7 @@ def run_with_timeout(
             solver_name=solver_name,
             precedence_mode=precedence_mode,
             encoding_variant=encoding_variant,
+            domain_mode=domain_mode,
             runtime_seconds=time.perf_counter() - started,
         )
     else:
@@ -379,6 +407,7 @@ def run_with_timeout(
                 solver_name=solver_name,
                 precedence_mode=precedence_mode,
                 encoding_variant=encoding_variant,
+                domain_mode=domain_mode,
                 runtime_seconds=time.perf_counter() - started,
             )
             result["error_type"] = "NoWorkerPayload"
@@ -425,7 +454,12 @@ def write_detailed_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "all_participant_idle_range",
         "total_internal_idle_slots",
         "initial_schedule_candidates",
+        "full_schedule_candidates",
+        "unary_eligible_schedule_candidates",
         "reduced_schedule_candidates",
+        "active_schedule_candidates",
+        "unary_removed_schedule_candidates",
+        "preprocessing_removed_schedule_candidates",
         "removed_schedule_candidates",
         "n_vars",
         "n_hard_clauses",
@@ -477,12 +511,13 @@ def format_table_cell(result: dict[str, Any]) -> str:
 
 
 def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
-    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for result in results:
         key = (
             result["instance"],
             result["precedence_mode"],
             result["solver"],
+            result["domain_mode"],
         )
         row = grouped.setdefault(
             key,
@@ -493,7 +528,7 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
                 ),
                 "solver": result["solver"],
                 "objective": "IdleRange(P*)",
-                "domain_mode": "reduced",
+                "domain_mode": result["domain_mode"],
             },
         )
         row[result["encoding_variant"]] = format_table_cell(result)
@@ -502,7 +537,14 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
     for row in rows:
         for variant in VARIANTS:
             row.setdefault(variant, "-")
-    rows.sort(key=lambda row: (row["instance"], row["solver"], row["staircase"]))
+    rows.sort(
+        key=lambda row: (
+            row["instance"],
+            row["domain_mode"],
+            row["solver"],
+            row["staircase"],
+        )
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = [
         "instance",
@@ -529,38 +571,48 @@ def main(argv: list[str] | None = None) -> int:
     solvers = selected(args.solver, SOLVERS)
     precedence_modes = selected(args.precedence_mode, PRECEDENCE_MODES, "both")
     variants = selected(args.encoding_variant, VARIANTS)
-    total_runs = len(instances) * len(solvers) * len(precedence_modes) * len(variants)
+    domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
+    total_runs = (
+        len(instances)
+        * len(solvers)
+        * len(precedence_modes)
+        * len(variants)
+        * len(domain_modes)
+    )
     results: list[dict[str, Any]] = []
     current_run = 0
 
     print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
-    print("Domain mode: exact Reduced Domain (Full/Reduced counts are reported).")
+    print(f"Domain mode(s): {', '.join(domain_modes)}")
     for instance_path in instances:
-        for precedence_mode in precedence_modes:
-            for solver_name in solvers:
-                for variant in variants:
-                    current_run += 1
-                    print(
-                        f"[{current_run}/{total_runs}] {instance_path.stem} | "
-                        f"{solver_name} | {precedence_mode} | {variant}",
-                        flush=True,
-                    )
-                    result = run_with_timeout(
-                        solver_name,
-                        instance_path,
-                        precedence_mode,
-                        variant,
-                        args.timeout,
-                        args.verbose,
-                    )
-                    result = {"instance": instance_path.stem, **result}
-                    results.append(result)
-                    print(
-                        f"    {result['sat_result']} | "
-                        f"IdleRange(P*)={result.get('idle_range_pstar')} | "
-                        f"time={result.get('runtime_seconds')}s",
-                        flush=True,
-                    )
+        for domain_mode in domain_modes:
+            for precedence_mode in precedence_modes:
+                for solver_name in solvers:
+                    for variant in variants:
+                        current_run += 1
+                        print(
+                            f"[{current_run}/{total_runs}] {instance_path.stem} | "
+                            f"{domain_mode} | {solver_name} | "
+                            f"{precedence_mode} | {variant}",
+                            flush=True,
+                        )
+                        result = run_with_timeout(
+                            solver_name,
+                            instance_path,
+                            precedence_mode,
+                            variant,
+                            domain_mode,
+                            args.timeout,
+                            args.verbose,
+                        )
+                        result = {"instance": instance_path.stem, **result}
+                        results.append(result)
+                        print(
+                            f"    {result['sat_result']} | "
+                            f"IdleRange(P*)={result.get('idle_range_pstar')} | "
+                            f"time={result.get('runtime_seconds')}s",
+                            flush=True,
+                        )
 
     detailed_path = Path(args.long_csv) if args.long_csv else _detailed_csv_path(args.csv)
     aggregate_path = Path(args.csv)

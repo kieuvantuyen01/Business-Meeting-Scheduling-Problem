@@ -11,9 +11,11 @@ from pysat.formula import CNF, IDPool, WCNF
 
 PrecedenceMode = Literal["traditional", "staircase"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
+DomainMode = Literal["full", "reduced"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
+VALID_DOMAIN_MODES = {"full", "reduced"}
 
 
 @dataclass(frozen=True)
@@ -124,9 +126,15 @@ class B2BModelArtifacts:
     n_clauses: int
     encoding_variant: str
     precedence_mode: str
+    domain_mode: str
     enabled_constraints: list[str]
+    full_schedule_candidates: int
+    unary_eligible_schedule_candidates: int
     initial_schedule_candidates: int
     reduced_schedule_candidates: int
+    active_schedule_candidates: int
+    unary_removed_schedule_candidates: int
+    preprocessing_removed_schedule_candidates: int
     removed_schedule_candidates: int
     precedence_direct_edges: int
     precedence_transitive_edges: int
@@ -594,6 +602,11 @@ class B2BSATModel:
 
     This replaces per-idle-slot variables and quadratic sorting networks with a
     linear prefix/suffix span encoding and exact unary threshold literals.
+
+    ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
+    and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
+    variables removed by the exact preprocessing fixpoint. Every other encoding
+    component follows the same code path in both modes.
     """
 
     def __init__(
@@ -601,26 +614,52 @@ class B2BSATModel:
         inst: B2BInstance,
         precedence_mode: PrecedenceMode = "staircase",
         encoding_variant: EncodingVariant = "imp12+",
+        domain_mode: DomainMode = "reduced",
     ) -> None:
         if precedence_mode not in VALID_PRECEDENCE_MODES:
             raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
+        if domain_mode not in VALID_DOMAIN_MODES:
+            raise ValueError(f"Unknown domain_mode={domain_mode!r}")
 
         self.inst = inst
         self.precedence_mode = precedence_mode
         self.encoding_variant = encoding_variant
+        self.domain_mode = domain_mode
         self.objective_participants = tuple(
             participant
             for participant, meeting_count in enumerate(inst.n_meetings_business)
             if meeting_count >= 2
         )
         self.graph = build_precedence_graph(inst.precedences)
+        self._unary_eligible_slots = [
+            sorted(original_eligible_slots(inst, meeting))
+            for meeting in range(inst.n_meetings)
+        ]
         (
-            self._eligible_slots,
-            self.initial_schedule_candidates,
+            self._reduced_slots,
+            reduction_initial_count,
             self.reduced_schedule_candidates,
         ) = reduce_domains_with_precedence(inst, self.graph)
+        self.full_schedule_candidates = inst.n_meetings * inst.n_total_slots
+        self.unary_eligible_schedule_candidates = sum(
+            len(slots) for slots in self._unary_eligible_slots
+        )
+        if reduction_initial_count != self.unary_eligible_schedule_candidates:
+            raise AssertionError("domain-reduction input disagrees with unary domains")
+
+        # Backward-compatible name: historically this field counted candidates
+        # after session/fixed/forbidden filtering, before exact propagation.
+        self.initial_schedule_candidates = self.unary_eligible_schedule_candidates
+        if domain_mode == "full":
+            all_slots = list(range(inst.n_total_slots))
+            self._eligible_slots = [list(all_slots) for _ in range(inst.n_meetings)]
+        else:
+            self._eligible_slots = [list(slots) for slots in self._reduced_slots]
+        self.active_schedule_candidates = sum(
+            len(slots) for slots in self._eligible_slots
+        )
 
         self.vpool = IDPool()
         self.enabled_constraints: list[str] = []
@@ -650,13 +689,27 @@ class B2BSATModel:
     # Public variable/domain helpers -----------------------------------
 
     def eligible_slots(self, m: int) -> list[int]:
+        """Return slots for which schedule variables exist in the active mode."""
+
         return list(self._eligible_slots[m])
+
+    def unary_eligible_slots(self, m: int) -> list[int]:
+        """Return slots satisfying session, fixed, and forbidden restrictions."""
+
+        return list(self._unary_eligible_slots[m])
+
+    def reduced_slots(self, m: int) -> list[int]:
+        """Return the exact preprocessing fixpoint independently of active mode."""
+
+        return list(self._reduced_slots[m])
 
     def x(self, m: int, t: int) -> int:
         try:
             return self._schedule_vars[m, t]
         except KeyError as exc:
-            raise KeyError(f"schedule({m},{t}) was removed by preprocessing") from exc
+            raise KeyError(
+                f"schedule({m},{t}) does not exist in {self.domain_mode} mode"
+            ) from exc
 
     def x_or_none(self, m: int, t: int) -> int | None:
         return self._schedule_vars.get((m, t))
@@ -806,9 +859,17 @@ class B2BSATModel:
         cnf = CNF()
         self.enabled_constraints = [
             "objective-only optimization: no hard upper bound on objective gap",
-            "unary domain filtering + participant matching GAC + slot saturation",
             "distance-aware explicit E* bounds and cycle detection",
         ]
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "Full Domain MxT schedule variables + explicit unary exclusions"
+            )
+        else:
+            self.enabled_constraints.append(
+                "Reduced Domain variables after unary filtering + matching GAC + "
+                "slot saturation"
+            )
 
         if self.graph.cycle_nodes:
             cnf.append([])
@@ -837,9 +898,23 @@ class B2BSATModel:
             n_clauses=len(cnf.clauses),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
+            domain_mode=self.domain_mode,
             enabled_constraints=list(self.enabled_constraints),
+            full_schedule_candidates=self.full_schedule_candidates,
+            unary_eligible_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+            ),
             initial_schedule_candidates=self.initial_schedule_candidates,
             reduced_schedule_candidates=self.reduced_schedule_candidates,
+            active_schedule_candidates=self.active_schedule_candidates,
+            unary_removed_schedule_candidates=(
+                self.full_schedule_candidates
+                - self.unary_eligible_schedule_candidates
+            ),
+            preprocessing_removed_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+                - self.reduced_schedule_candidates
+            ),
             removed_schedule_candidates=(
                 self.initial_schedule_candidates - self.reduced_schedule_candidates
             ),
@@ -866,12 +941,22 @@ class B2BSATModel:
 
     def _add_assignment(self, cnf: CNF) -> None:
         self.enabled_constraints.append(
-            "(20),(22)-(27) exactly once over fully reduced domains"
+            f"(20),(22)-(27) exactly once over {self.domain_mode} domains"
         )
         for meeting, slots in enumerate(self._eligible_slots):
             self._add_exactly_one_commander(
                 cnf, [self.x(meeting, slot) for slot in slots]
             )
+
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "(22)-(27) session/fixed/forbidden exclusions as hard unit clauses"
+            )
+            for meeting, unary_slots in enumerate(self._unary_eligible_slots):
+                allowed = set(unary_slots)
+                for slot in range(self.inst.n_total_slots):
+                    if slot not in allowed:
+                        cnf.append([-self.x(meeting, slot)])
 
     def _add_participant_collision(self, cnf: CNF) -> None:
         self.enabled_constraints.append("(19) participant atMost-one per slot")
@@ -886,7 +971,9 @@ class B2BSATModel:
                     self._add_pairwise_atmost_one(cnf, lits)
 
     def _add_capacity_over_meetings(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(21) capacity over reduced schedule variables")
+        self.enabled_constraints.append(
+            f"(21) capacity over {self.domain_mode} schedule variables"
+        )
         for slot in range(self.inst.n_total_slots):
             lits = [
                 lit
@@ -1173,7 +1260,7 @@ class B2BSATModel:
         return thresholds_by_participant
 
     def _add_implied_constraint_1(self, cnf: CNF, participant: int) -> None:
-        marker = "(43) exactly |Mp| reduced usedSlot variables"
+        marker = f"(43) exactly |Mp| {self.domain_mode} usedSlot variables"
         if marker not in self.enabled_constraints:
             self.enabled_constraints.append(marker)
         lits = [
@@ -1441,6 +1528,11 @@ def _main() -> None:
         choices=sorted(VALID_ENCODING_VARIANTS),
         default="imp12+",
     )
+    parser.add_argument(
+        "--domain-mode",
+        choices=sorted(VALID_DOMAIN_MODES),
+        default="reduced",
+    )
     parser.add_argument("--write-cnf", type=Path)
     parser.add_argument("--write-wcnf", type=Path)
     parser.add_argument("--skip-meetingsx-validation", action="store_true")
@@ -1454,17 +1546,20 @@ def _main() -> None:
         inst=inst,
         precedence_mode=args.precedence_mode,
         encoding_variant=args.encoding_variant,
+        domain_mode=args.domain_mode,
     )
     artifacts = model.build_base_cnf()
 
     print(f"instance={inst.instance_name}")
     print(f"variant={artifacts.encoding_variant}")
     print(f"precedence_mode={artifacts.precedence_mode}")
+    print(f"domain_mode={artifacts.domain_mode}")
     print(
         "schedule_candidates="
-        f"{artifacts.reduced_schedule_candidates}/"
-        f"{artifacts.initial_schedule_candidates} "
-        f"(removed={artifacts.removed_schedule_candidates})"
+        f"active:{artifacts.active_schedule_candidates}, "
+        f"full:{artifacts.full_schedule_candidates}, "
+        f"unary_eligible:{artifacts.unary_eligible_schedule_candidates}, "
+        f"reduced:{artifacts.reduced_schedule_candidates}"
     )
     print(
         "precedence_edges="
