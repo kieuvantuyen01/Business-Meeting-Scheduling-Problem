@@ -17,8 +17,10 @@ RUNTIME_SCOPE = (
     "independent validation; excludes worker-process startup and result-file export"
 )
 FORMULA_SCOPE = (
-    "shared base CNF plus unit soft objective clauses for MaxSAT; SAT "
-    "bound/totalizer overhead is reported separately in optimizer_added_* fields"
+    "formalism-specific model size: SAT/MaxSAT reports base CNF and soft "
+    "clauses, MIP reports variables/linear constraints/nonzeros, and CP reports "
+    "integer variables plus linear/global constraints; SAT bound/totalizer "
+    "overhead remains separate in optimizer_added_*"
 )
 
 
@@ -47,7 +49,16 @@ RESULT_COLUMNS = (
     ResultColumn("runtime_seconds", "seconds"),
     ResultColumn("runtime_censored", "boolean"),
     ResultColumn("peak_memory_mb", "decimal"),
+    ResultColumn("formalism"),
+    ResultColumn("model_family"),
+    ResultColumn("formulation_name"),
     ResultColumn("n_vars", "integer"),
+    ResultColumn("n_binary_variables", "integer"),
+    ResultColumn("n_integer_variables", "integer"),
+    ResultColumn("n_continuous_variables", "integer"),
+    ResultColumn("n_linear_constraints", "integer"),
+    ResultColumn("n_global_constraints", "integer"),
+    ResultColumn("n_nonzeros", "integer"),
     ResultColumn("n_hard_clauses", "integer"),
     ResultColumn("n_soft_clauses", "integer"),
     ResultColumn("n_total_clauses", "integer"),
@@ -79,6 +90,11 @@ RESULT_COLUMNS = (
     ResultColumn("soft_weight_sum", "integer"),
     ResultColumn("n_objective_lits", "integer"),
     ResultColumn("n_optimizer_calls", "integer"),
+    ResultColumn("best_bound", "decimal"),
+    ResultColumn("optimality_gap", "decimal"),
+    ResultColumn("branch_and_bound_nodes", "decimal"),
+    ResultColumn("cp_branches", "integer"),
+    ResultColumn("cp_fails", "integer"),
     ResultColumn("n_bound_encodings", "integer"),
     ResultColumn("optimizer_added_variables_peak", "integer"),
     ResultColumn("optimizer_added_clauses_peak", "integer"),
@@ -98,6 +114,7 @@ RESULT_COLUMNS = (
     ResultColumn("precedence_unique_suffix_cuts", "integer"),
     ResultColumn("input_parsing_seconds", "seconds"),
     ResultColumn("model_construction_seconds", "seconds"),
+    ResultColumn("backend_model_construction_seconds", "seconds"),
     ResultColumn("model_build_seconds", "seconds"),
     ResultColumn("solve_and_validate_seconds", "seconds"),
     ResultColumn("runtime_scope"),
@@ -128,6 +145,7 @@ RESULT_COLUMNS = (
     ResultColumn("physical_cpu_cores", "integer"),
     ResultColumn("logical_cpu_cores", "integer"),
     ResultColumn("system_memory_mb", "decimal"),
+    ResultColumn("threads", "integer"),
     ResultColumn("random_seed", "integer"),
     ResultColumn("runner_command"),
     ResultColumn("solver_binary"),
@@ -158,7 +176,14 @@ README_ROWS = (
     ),
     (
         "model_construction_seconds",
-        "Domain/graph preprocessing and construction of the shared base formula.",
+        "Domain/graph preprocessing and construction of the shared base "
+        "formula or solver-neutral exact-model IR.",
+    ),
+    (
+        "backend_model_construction_seconds",
+        "For MIP/CP only: translation of the shared IR/specification into the "
+        "commercial solver API; included in runtime_seconds and "
+        "solve_and_validate_seconds.",
     ),
     (
         "solve_and_validate_seconds",
@@ -174,6 +199,16 @@ README_ROWS = (
         "SAT clauses",
         "n_soft_clauses is zero. Base counts are comparable across engines; "
         "optimizer_added_* records bound/totalizer overhead separately.",
+    ),
+    (
+        "MIP size",
+        "n_binary_variables, n_integer_variables, n_linear_constraints, and "
+        "n_nonzeros describe the shared MIP-SpanRange model.",
+    ),
+    (
+        "CP size",
+        "n_integer_variables counts meeting-time variables; "
+        "n_global_constraints counts all_diff and count constraints.",
     ),
     (
         "Configuration key",

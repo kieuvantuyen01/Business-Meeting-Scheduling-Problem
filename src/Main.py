@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import multiprocessing as mp
 import os
 import platform
@@ -24,6 +25,8 @@ except ImportError:  # Memory remains optional for benchmark portability.
 
 from IncrementalSAT_Solver import B2BIncrementalSATSolver
 from B2B_Instance import read_instance
+from CPLEX_CP_Solver import B2BCPLEXCPSolver
+from CPLEX_MIP_Solver import B2BCPLEXMIPSolver
 from Dataset_Manifest import (
     DATASET_ARCHIVE_URL,
     DATASET_SOURCE_PAGE,
@@ -37,6 +40,7 @@ from MaxSAT_Solver import (
     resolve_uwrmaxsat_binary,
 )
 from Multiple_SAT import B2BMultipleSATSolver
+from Gurobi_MIP_Solver import B2BGurobiMIPSolver
 from SAT_Backend import require_sat_backend
 from Excel_Results import (
     FORMULA_SCOPE,
@@ -48,7 +52,10 @@ from Excel_Results import (
 
 
 VARIANTS = ["basic", "imp1", "imp2", "imp12", "imp12+"]
-SOLVERS = ["incremental", "multiple", "maxsat"]
+AGGREGATE_VARIANTS = [*VARIANTS, "n/a"]
+SAT_SOLVERS = ["incremental", "multiple", "maxsat"]
+EXACT_SOLVERS = ["gurobi_mip", "cplex_mip", "cplex_cp"]
+SOLVERS = [*SAT_SOLVERS, *EXACT_SOLVERS]
 PRECEDENCE_MODES = ["traditional", "staircase"]
 PRECEDENCE_ENCODINGS = ["pairwise", "sparse_suffix"]
 PRECEDENCE_GRAPHS = ["direct", "distance_closure"]
@@ -126,8 +133,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--solver",
-        choices=[*SOLVERS, "all"],
-        default="all",
+        choices=[*SOLVERS, "sat_all", "exact_all", "all"],
+        default="sat_all",
+        help=(
+            "sat_all preserves the original SAT/MaxSAT benchmark; exact_all "
+            "runs Gurobi MIP, CPLEX MIP, and CPLEX CP; all runs both groups"
+        ),
     )
     parser.add_argument(
         "--maxsat-backend",
@@ -183,6 +194,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="wall-clock timeout per run in seconds",
     )
     parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="worker/thread limit passed identically to commercial exact solvers",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=0,
+        help="random seed passed identically to commercial exact solvers",
+    )
+    parser.add_argument(
         "--csv",
         default="benchmark_results.csv",
         help="aggregated benchmark CSV path",
@@ -202,6 +225,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.threads <= 0:
+        parser.error("--threads must be positive")
     if args.precedence_mode is not None and (
         args.precedence_encoding is not None or args.precedence_graph is not None
     ):
@@ -213,6 +238,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def selected(choice: str, values: list[str], all_name: str = "all") -> list[str]:
     return values if choice == all_name else [choice]
+
+
+def selected_solvers(choice: str) -> list[str]:
+    if choice == "all":
+        return list(SOLVERS)
+    if choice == "sat_all":
+        return list(SAT_SOLVERS)
+    if choice == "exact_all":
+        return list(EXACT_SOLVERS)
+    return [choice]
+
+
+@dataclass(frozen=True)
+class RunConfiguration:
+    solver_name: str
+    precedence_encoding: str
+    precedence_graph: str
+    encoding_variant: str
+    domain_mode: str
 
 
 def precedence_configurations(args: argparse.Namespace) -> list[tuple[str, str]]:
@@ -247,6 +291,8 @@ def legacy_precedence_mode(
     precedence_encoding: str,
     precedence_graph: str,
 ) -> str:
+    if precedence_encoding in {"native_linear", "native_cp"}:
+        return "exact_native"
     if (precedence_encoding, precedence_graph) == ("pairwise", "direct"):
         return "traditional"
     if (precedence_encoding, precedence_graph) == (
@@ -268,6 +314,71 @@ def configuration_metadata(
     sat_backend: str,
 ) -> dict[str, str]:
     """Return stable human and machine identifiers for one factor tuple."""
+
+    if solver_name in EXACT_SOLVERS:
+        exact_configurations = {
+            "gurobi_mip": (
+                "GRB-MIP",
+                "GurobiMIP",
+                "native_linear",
+                "PrefixSuffixSpan",
+                "prefix_suffix_span_range",
+            ),
+            "cplex_mip": (
+                "CPX-MIP",
+                "CPLEXMIP",
+                "native_linear",
+                "PrefixSuffixSpan",
+                "prefix_suffix_span_range",
+            ),
+            "cplex_cp": (
+                "CPO-CP",
+                "CPLEXCP",
+                "native_cp",
+                "NativeMinMaxSpan",
+                "native_min_max_span_range",
+            ),
+        }
+        (
+            engine_code,
+            optimization_engine,
+            native_encoding,
+            span_factor,
+            idle_encoding,
+        ) = exact_configurations[solver_name]
+        label = f"R-DC-IRP-{engine_code}"
+        identifier = "__".join(
+            (
+                "cfg3",
+                "m-reduced",
+                f"p-{native_encoding}",
+                "g-distance_closure",
+                f"b-{idle_encoding}",
+                "o-idle_range_pstar",
+                f"s-{solver_name}",
+                "i-na",
+            )
+        )
+        return {
+            "configuration_label": label,
+            "configuration_id": identifier,
+            "configuration_key": identifier,
+            "optimization_engine": optimization_engine,
+            "idle_encoding": idle_encoding,
+            "objective_code": "IRP",
+            "implied_constraints_code": "NA",
+            "factor_m": "Reduced",
+            "factor_p": (
+                "NativeLinear"
+                if native_encoding == "native_linear"
+                else "NativeCP"
+            ),
+            "factor_g": "DistanceClosure-E*",
+            "factor_b": span_factor,
+            "factor_o": "IdleRangePstar",
+            "factor_s": optimization_engine,
+            "factor_i": "N/A",
+        }
 
     if solver_name == "maxsat":
         engine_code = "UW" if maxsat_backend == "uwrmaxsat" else "RC2"
@@ -464,6 +575,52 @@ def instance_precedence_configurations(
     return precedence_configurations(args)
 
 
+def benchmark_configurations(
+    args: argparse.Namespace,
+    instance: InstanceSpec,
+    solvers: list[str],
+) -> list[RunConfiguration]:
+    """Expand SAT factors and add each exact baseline exactly once."""
+
+    configurations: list[RunConfiguration] = []
+    selected_sat_solvers = [
+        solver for solver in solvers if solver in SAT_SOLVERS
+    ]
+    if selected_sat_solvers:
+        variants = selected(args.encoding_variant, VARIANTS)
+        domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
+        precedence_cells = instance_precedence_configurations(args, instance)
+        configurations.extend(
+            RunConfiguration(
+                solver_name=solver,
+                precedence_encoding=precedence_encoding,
+                precedence_graph=precedence_graph,
+                encoding_variant=variant,
+                domain_mode=domain_mode,
+            )
+            for domain_mode in domain_modes
+            for precedence_encoding, precedence_graph in precedence_cells
+            for solver in selected_sat_solvers
+            for variant in variants
+        )
+
+    for solver in solvers:
+        if solver not in EXACT_SOLVERS:
+            continue
+        configurations.append(
+            RunConfiguration(
+                solver_name=solver,
+                precedence_encoding=(
+                    "native_cp" if solver == "cplex_cp" else "native_linear"
+                ),
+                precedence_graph="distance_closure",
+                encoding_variant="n/a",
+                domain_mode="reduced",
+            )
+        )
+    return configurations
+
+
 def require_solver_environment(
     solvers: list[str],
     *,
@@ -496,10 +653,43 @@ def require_solver_environment(
     if any(solver in {"incremental", "multiple"} for solver in solvers):
         require_sat_backend(sat_backend)
 
+    optional_modules = {
+        "gurobi_mip": (
+            "gurobipy",
+            "Gurobi MIP requires 'gurobipy' and a valid Gurobi license",
+        ),
+        "cplex_mip": (
+            "docplex.mp.model",
+            "CPLEX MIP requires 'docplex' and a CPLEX runtime/license",
+        ),
+        "cplex_cp": (
+            "docplex.cp.model",
+            "CPLEX CP requires 'docplex' and a CP Optimizer runtime/license",
+        ),
+    }
+    for solver in solvers:
+        if solver not in optional_modules:
+            continue
+        module_name, message = optional_modules[solver]
+        try:
+            available = importlib.util.find_spec(module_name) is not None
+        except (ImportError, ModuleNotFoundError, AttributeError):
+            available = False
+        if not available:
+            raise RuntimeError(
+                f"{message}. The runner never substitutes another solver."
+            )
+
 
 def status_to_sat_result(status: str | None) -> str:
     normalized = (status or "ERROR").upper()
-    if normalized in {"OPTIMAL", "SAT", "SATISFIABLE", "OPTIMUM FOUND"}:
+    if normalized in {
+        "OPTIMAL",
+        "FEASIBLE",
+        "SAT",
+        "SATISFIABLE",
+        "OPTIMUM FOUND",
+    }:
         return "SAT"
     if normalized in {"UNSAT", "UNSATISFIABLE"}:
         return "UNSAT"
@@ -534,6 +724,12 @@ def _solver_class(solver_name: str):
         return B2BMultipleSATSolver
     if solver_name == "maxsat":
         return B2BMaxSATSolver
+    if solver_name == "gurobi_mip":
+        return B2BGurobiMIPSolver
+    if solver_name == "cplex_mip":
+        return B2BCPLEXMIPSolver
+    if solver_name == "cplex_cp":
+        return B2BCPLEXCPSolver
     raise ValueError(f"Unknown solver: {solver_name}")
 
 
@@ -546,6 +742,122 @@ def _formula_metadata(
     model_build_seconds: float,
 ) -> dict[str, Any]:
     artifacts = solver_object.artifacts
+    if getattr(artifacts, "formalism", "CNF") != "CNF":
+        return {
+            "message_type": "metadata",
+            "formalism": artifacts.formalism,
+            "model_family": artifacts.model_family,
+            "formulation_name": artifacts.formulation_name,
+            "objective": artifacts.objective_name,
+            "objective_participant_count": len(
+                artifacts.objective_participants
+            ),
+            "objective_participants": serialize_list(
+                tuple(
+                    participant + 1
+                    for participant in artifacts.objective_participants
+                )
+            ),
+            "objective_encoding": artifacts.objective_encoding,
+            "precedence_mode": artifacts.precedence_mode,
+            "precedence_encoding": artifacts.precedence_encoding,
+            "precedence_graph": artifacts.precedence_graph,
+            "precedence_configuration": (
+                artifacts.precedence_configuration
+            ),
+            "domain_mode": artifacts.domain_mode,
+            "full_schedule_candidates": (
+                artifacts.full_schedule_candidates
+            ),
+            "unary_eligible_schedule_candidates": (
+                artifacts.unary_eligible_schedule_candidates
+            ),
+            "initial_schedule_candidates": (
+                artifacts.initial_schedule_candidates
+            ),
+            "reduced_schedule_candidates": (
+                artifacts.reduced_schedule_candidates
+            ),
+            "active_schedule_candidates": (
+                artifacts.active_schedule_candidates
+            ),
+            "unary_removed_schedule_candidates": (
+                artifacts.unary_removed_schedule_candidates
+            ),
+            "preprocessing_removed_schedule_candidates": (
+                artifacts.preprocessing_removed_schedule_candidates
+            ),
+            "removed_schedule_candidates": (
+                artifacts.removed_schedule_candidates
+            ),
+            "n_vars": artifacts.n_vars,
+            "n_primary_variables": artifacts.n_primary_variables,
+            "n_auxiliary_variables": artifacts.n_auxiliary_variables,
+            "n_binary_variables": artifacts.n_binary_variables,
+            "n_integer_variables": artifacts.n_integer_variables,
+            "n_continuous_variables": artifacts.n_continuous_variables,
+            "n_linear_constraints": artifacts.n_linear_constraints,
+            "n_global_constraints": artifacts.n_global_constraints,
+            "n_nonzeros": artifacts.n_nonzeros,
+            "n_hard_clauses": None,
+            "n_soft_clauses": None,
+            "n_total_clauses": None,
+            "n_hard_literals": None,
+            "n_soft_literals": None,
+            "n_total_literals": None,
+            "n_objective_lits": 0,
+            "formula_scope": FORMULA_SCOPE,
+            "input_parsing_seconds": round(input_parsing_seconds, 6),
+            "model_construction_seconds": round(
+                model_construction_seconds,
+                6,
+            ),
+            "model_build_seconds": round(model_build_seconds, 6),
+            "precedence_direct_edges": (
+                artifacts.precedence_direct_edges
+            ),
+            "precedence_closure_edges": (
+                artifacts.precedence_transitive_edges
+            ),
+            "precedence_max_distance": (
+                artifacts.precedence_max_distance
+            ),
+            "precedence_relation_edges": (
+                artifacts.precedence_relation_edges
+            ),
+            "enabled_constraints": " | ".join(
+                artifacts.enabled_constraints
+            ),
+            "solver_backend": getattr(
+                solver_object,
+                "solver_backend",
+                "",
+            ),
+            "solver_version": getattr(
+                solver_object,
+                "solver_version",
+                "",
+            ),
+            "solver_binary": getattr(
+                solver_object,
+                "solver_binary",
+                "",
+            ),
+            "solver_command": getattr(
+                solver_object,
+                "solver_command",
+                "",
+            ),
+            "maxsat_backend_preference": "",
+            "sat_backend_preference": "",
+            "threads": getattr(solver_object, "threads", None),
+            "random_seed": getattr(
+                solver_object,
+                "random_seed",
+                None,
+            ),
+        }
+
     n_soft = len(artifacts.objective_lits) if solver_name == "maxsat" else 0
     return {
         "message_type": "metadata",
@@ -667,9 +979,14 @@ def _result_payload(
         "runtime_scope": RUNTIME_SCOPE,
         "runtime_censored": runtime_censored,
         "formula_scope": FORMULA_SCOPE,
+        "formalism": result.get("formalism"),
+        "model_family": result.get("model_family"),
+        "formulation_name": result.get("formulation_name"),
         "objective": result.get("objective", "internal_idle_slot_range_pstar"),
         "objective_value": result.get("objective_value"),
         "best_value": result.get("objective_value"),
+        "best_bound": result.get("best_bound"),
+        "optimality_gap": result.get("optimality_gap"),
         "proven_optimum": result.get("proven_optimum"),
         "objective_participant_count": result.get(
             "objective_participant_count"
@@ -713,6 +1030,12 @@ def _result_payload(
         "optimizer_added_clauses_cumulative": result.get(
             "optimizer_added_clauses_cumulative"
         ),
+        "branch_and_bound_nodes": result.get("branch_and_bound_nodes"),
+        "cp_branches": result.get("cp_branches"),
+        "cp_fails": result.get("cp_fails"),
+        "backend_model_construction_seconds": result.get(
+            "backend_model_construction_seconds"
+        ),
     }
     payload["sat_result"] = status_to_sat_result(payload["status"])
     return payload
@@ -730,6 +1053,8 @@ def _worker(
     uwrmaxsat_sha256: str | None,
     sat_backend: str,
     solver_timeout: float,
+    threads: int,
+    random_seed: int,
     verbose: bool,
     output: mp.Queue[Any],
 ) -> None:
@@ -737,13 +1062,22 @@ def _worker(
     try:
         instance = read_instance(instance_path)
         input_ready = time.perf_counter()
-        solver_kwargs: dict[str, Any] = {
-            "instance_or_path": instance,
-            "precedence_encoding": precedence_encoding,
-            "precedence_graph": precedence_graph,
-            "encoding_variant": encoding_variant,
-            "domain_mode": domain_mode,
-        }
+        if solver_name in EXACT_SOLVERS:
+            solver_kwargs: dict[str, Any] = {
+                "instance_or_path": instance,
+                "domain_mode": "reduced",
+                "solver_timeout": solver_timeout,
+                "threads": threads,
+                "random_seed": random_seed,
+            }
+        else:
+            solver_kwargs = {
+                "instance_or_path": instance,
+                "precedence_encoding": precedence_encoding,
+                "precedence_graph": precedence_graph,
+                "encoding_variant": encoding_variant,
+                "domain_mode": domain_mode,
+            }
         if solver_name == "maxsat":
             solver_kwargs.update(
                 backend=maxsat_backend,
@@ -751,7 +1085,7 @@ def _worker(
                 uwrmaxsat_sha256=uwrmaxsat_sha256,
                 uwrmaxsat_timeout=solver_timeout,
             )
-        else:
+        elif solver_name in {"incremental", "multiple"}:
             solver_kwargs["solver_name"] = sat_backend
         solver_object = _solver_class(solver_name)(**solver_kwargs)
         model_ready = time.perf_counter()
@@ -760,6 +1094,13 @@ def _worker(
         model_build_seconds = model_ready - started
         if solver_name == "maxsat" and maxsat_backend == "uwrmaxsat":
             solver_object.uwrmaxsat_timeout = max(
+                0.001,
+                solver_timeout
+                - model_build_seconds
+                - MAXSAT_REPORTING_MARGIN_SECONDS,
+            )
+        elif solver_name in EXACT_SOLVERS:
+            solver_object.solver_timeout = max(
                 0.001,
                 solver_timeout
                 - model_build_seconds
@@ -827,7 +1168,9 @@ def _worker(
                     maxsat_backend if solver_name == "maxsat" else ""
                 ),
                 "sat_backend_preference": (
-                    sat_backend if solver_name != "maxsat" else ""
+                    sat_backend
+                    if solver_name in {"incremental", "multiple"}
+                    else ""
                 ),
                 "validation_errors": "",
                 "error_type": type(exc).__name__,
@@ -955,7 +1298,11 @@ def _terminal_payload(
         "maxsat_backend_preference": (
             maxsat_backend if solver_name == "maxsat" else ""
         ),
-        "sat_backend_preference": sat_backend if solver_name != "maxsat" else "",
+        "sat_backend_preference": (
+            sat_backend
+            if solver_name in {"incremental", "multiple"}
+            else ""
+        ),
         "validation_errors": "",
         "error_type": "",
         "error_message": "",
@@ -975,6 +1322,8 @@ def run_with_timeout(
     sat_backend: str,
     timeout_seconds: float,
     verbose: bool,
+    threads: int = 1,
+    random_seed: int = 0,
 ) -> dict[str, Any]:
     context = mp.get_context("spawn")
     output: mp.Queue[Any] = context.Queue()
@@ -992,6 +1341,8 @@ def run_with_timeout(
             uwrmaxsat_sha256,
             sat_backend,
             timeout_seconds,
+            threads,
+            random_seed,
             verbose,
             output,
         ),
@@ -1207,7 +1558,7 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
 
     rows = list(grouped.values())
     for row in rows:
-        for variant in VARIANTS:
+        for variant in AGGREGATE_VARIANTS:
             row.setdefault(variant, "-")
     rows.sort(
         key=lambda row: (
@@ -1227,7 +1578,7 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "solver",
         "objective",
         "domain_mode",
-        *VARIANTS,
+        *AGGREGATE_VARIANTS,
     ]
     with path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)
@@ -1294,6 +1645,7 @@ def experiment_metadata(
         "system_memory_mb": total_memory_mb,
         "timeout_seconds": args.timeout,
         "memory_limit_mb": None,
+        "threads": None,
         "random_seed": None,
     }
 
@@ -1329,7 +1681,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}")
         return 2
 
-    solvers = selected(args.solver, SOLVERS)
+    solvers = selected_solvers(args.solver)
     try:
         require_solver_environment(
             solvers,
@@ -1341,17 +1693,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 2
-    precedence_cells_by_content = {
-        instance.content_id: instance_precedence_configurations(args, instance)
+    configurations_by_content = {
+        instance.content_id: benchmark_configurations(args, instance, solvers)
         for instance in instances
     }
-    variants = selected(args.encoding_variant, VARIANTS)
-    domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
     total_runs = sum(
-        len(precedence_cells_by_content[instance.content_id])
-        * len(solvers)
-        * len(variants)
-        * len(domain_modes)
+        len(configurations_by_content[instance.content_id])
         for instance in instances
     )
     results: list[dict[str, Any]] = []
@@ -1364,66 +1711,68 @@ def main(argv: list[str] | None = None) -> int:
         f"Canonical instances: {len(instances)} "
         f"(family={args.family}, SHA-256 deduplicated)"
     )
-    print(f"Domain mode(s): {', '.join(domain_modes)}")
+    if any(solver in SAT_SOLVERS for solver in solvers):
+        domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
+        print(f"SAT/MaxSAT domain mode(s): {', '.join(domain_modes)}")
+    if any(solver in EXACT_SOLVERS for solver in solvers):
+        print(
+            "Exact baselines: Reduced + DistanceClosure; "
+            f"threads={args.threads}, seed={args.random_seed}"
+        )
     if "maxsat" in solvers:
         print(f"MaxSAT backend: {args.maxsat_backend}")
     if any(solver in {"incremental", "multiple"} for solver in solvers):
         print(f"SAT backend: {args.sat_backend}")
     for instance in instances:
-        precedence_cells = precedence_cells_by_content[instance.content_id]
-        print(
-            f"Instance {instance.instance_name}: P×G="
-            + ", ".join(
-                f"{precedence_encoding}+{precedence_graph}"
-                for precedence_encoding, precedence_graph in precedence_cells
-            )
-        )
+        configurations = configurations_by_content[instance.content_id]
+        print(f"Instance {instance.instance_name}: {len(configurations)} run(s)")
         instance_results: list[dict[str, Any]] = []
-        for domain_mode in domain_modes:
-            for precedence_encoding, precedence_graph in precedence_cells:
-                for solver_name in solvers:
-                    for variant in variants:
-                        current_run += 1
-                        print(
-                            f"[{current_run}/{total_runs}] {instance.instance_name} | "
-                            f"{domain_mode} | {solver_name} | "
-                            f"P={precedence_encoding} | G={precedence_graph} | "
-                            f"{variant}",
-                            flush=True,
-                        )
-                        result = run_with_timeout(
-                            solver_name,
-                            instance.path,
-                            precedence_encoding,
-                            precedence_graph,
-                            variant,
-                            domain_mode,
-                            args.maxsat_backend,
-                            args.uwrmaxsat_bin,
-                            args.uwrmaxsat_sha256,
-                            args.sat_backend,
-                            args.timeout,
-                            args.verbose,
-                        )
-                        result = {
-                            **instance_result_metadata(instance),
-                            **experiment,
-                            **result,
-                        }
-                        results.append(result)
-                        instance_results.append(result)
-                        workbook_path = write_instance_excel(
-                            excel_output_dir,
-                            instance.instance_name,
-                            instance_results,
-                        )
-                        print(
-                            f"    {result['sat_result']} | "
-                            f"IdleRange(P*)={result.get('idle_range_pstar')} | "
-                            f"time={result.get('runtime_seconds')}s | "
-                            f"config={result.get('configuration_label')}",
-                            flush=True,
-                        )
+        for configuration in configurations:
+            current_run += 1
+            print(
+                f"[{current_run}/{total_runs}] {instance.instance_name} | "
+                f"{configuration.domain_mode} | "
+                f"{configuration.solver_name} | "
+                f"P={configuration.precedence_encoding} | "
+                f"G={configuration.precedence_graph} | "
+                f"{configuration.encoding_variant}",
+                flush=True,
+            )
+            result = run_with_timeout(
+                configuration.solver_name,
+                instance.path,
+                configuration.precedence_encoding,
+                configuration.precedence_graph,
+                configuration.encoding_variant,
+                configuration.domain_mode,
+                args.maxsat_backend,
+                args.uwrmaxsat_bin,
+                args.uwrmaxsat_sha256,
+                args.sat_backend,
+                args.timeout,
+                args.verbose,
+                args.threads,
+                args.random_seed,
+            )
+            result = {
+                **instance_result_metadata(instance),
+                **experiment,
+                **result,
+            }
+            results.append(result)
+            instance_results.append(result)
+            workbook_path = write_instance_excel(
+                excel_output_dir,
+                instance.instance_name,
+                instance_results,
+            )
+            print(
+                f"    {result['sat_result']} | "
+                f"IdleRange(P*)={result.get('idle_range_pstar')} | "
+                f"time={result.get('runtime_seconds')}s | "
+                f"config={result.get('configuration_label')}",
+                flush=True,
+            )
         print(f"    Excel: {workbook_path}", flush=True)
 
     detailed_path = Path(args.long_csv) if args.long_csv else _detailed_csv_path(args.csv)
