@@ -1,4 +1,4 @@
-# B2B SAT/MaxSAT conference model
+# B2B SAT/MaxSAT, MIP, and CP conference models
 
 This repository implements the conference formulation of the
 Business-to-Business Meeting Scheduling Problem. The single optimization
@@ -26,6 +26,15 @@ Lexicographic `IdleSum` objective.
   UWrMaxSAT production execution and an explicit RC2 development backend.
 - `src/Multiple_SAT.py`: fresh-SAT binary-search optimization.
 - `src/IncrementalSAT_Solver.py`: incremental-SAT optimization with a totalizer.
+- `src/MIP_SpanRange.py`: one solver-neutral linear model shared byte-for-byte
+  at the variable/constraint IR level by both commercial MIP adapters.
+- `src/Gurobi_MIP_Solver.py`: Gurobi implementation of `MIP-SpanRange`.
+- `src/CPLEX_MIP_Solver.py`: CPLEX/DOcplex.MP implementation of the same
+  `MIP-SpanRange` coefficient matrix.
+- `src/CPLEX_CP_Solver.py`: CP Optimizer meeting-time formulation using native
+  `all_diff`, `count`, `min`, and `max` expressions.
+- `src/Exact_Model_Common.py`: shared reduced domains, precedence closure,
+  objective participants, validation, and result records for exact baselines.
 - `src/Dataset_Manifest.py`: canonical SHA-256 manifest for the official UdG
   benchmark archive.
 - `src/Main.py`: timeout-controlled benchmark runner and CSV/XLSX exporter.
@@ -78,6 +87,34 @@ Detailed CSV output records `precedence_encoding`, `precedence_graph`, their
 composite label, selected relation count, pairwise clause count, sparse link
 count, and unique suffix-cut count.
 
+## Commercial exact baselines
+
+The cross-paradigm experiment adds exactly three configurations:
+
+| CLI solver | Formulation | Fixed comparison configuration |
+|---|---|---|
+| `gurobi_mip` | `MIP-SpanRange` | Reduced domain + distance closure |
+| `cplex_mip` | `MIP-SpanRange` | Reduced domain + distance closure |
+| `cplex_cp` | `CP-MeetingTime-SpanRange` | Reduced domain + distance closure |
+
+These configurations are main comparison baselines, not SAT-factor ablations.
+Consequently, they are each run once per instance and are not multiplied by
+`--domain-mode`, P/G, or `--encoding-variant`. Gurobi MIP and CPLEX MIP consume
+the same solver-neutral variable list, coefficient matrix, bounds, variable
+types, and objective. The CP model uses one sparse-domain integer time variable
+per meeting and CP Optimizer global constraints.
+
+Install the optional Python APIs with:
+
+```bash
+python3 -m pip install -r src/requirements-exact.txt
+```
+
+This does not install commercial licenses. Gurobi needs a usable Gurobi
+license; CPLEX MIP and CPLEX CP need their respective IBM runtimes/licenses.
+The runner fails before the batch when a requested Python API is absent and
+never substitutes another solver.
+
 ## Run examples
 
 The production implied-constraint package defaults to `imp12+`. On an instance
@@ -87,7 +124,7 @@ without precedence, omitted P/G flags automatically collapse to the neutral
 ```bash
 python3 src/Main.py \
   --instance data_table03_origin/tic-12.original.dzn \
-  --solver all \
+  --solver sat_all \
   --domain-mode both \
   --timeout 120 \
   --csv output/benchmark_results.csv
@@ -97,6 +134,40 @@ On a precedence instance the same omitted P/G flags expand to all four cells,
 giving exactly `2 domains x 4 P/G cells x 3 engines = 24` runs. Explicit P/G
 flags always override this automatic collapse. Use `--encoding-variant all`
 only for a diagnostic implied-constraint ablation.
+
+Run only the three commercial exact baselines:
+
+```bash
+python3 src/Main.py \
+  --instance data_table03_origin/tic-12.original.dzn \
+  --solver exact_all \
+  --threads 1 \
+  --random-seed 0 \
+  --timeout 7200 \
+  --csv output/exact_results.csv
+```
+
+Run the primary six-configuration comparison (three Boolean methods plus three
+commercial exact baselines) with:
+
+```bash
+python3 src/Main.py \
+  --instance data_table03_origin/tic-12.original.dzn \
+  --solver all \
+  --domain-mode reduced \
+  --precedence-encoding sparse_suffix \
+  --precedence-graph distance_closure \
+  --encoding-variant imp12+ \
+  --threads 1 \
+  --random-seed 0 \
+  --timeout 7200 \
+  --csv output/six_solver_comparison.csv
+```
+
+Omitting the SAT factor flags with `--solver all` still expands the requested
+SAT ablations while retaining only one run for each exact backend. The default
+is `--solver sat_all`, preserving the original SAT/MaxSAT workflow on machines
+without commercial APIs.
 
 Run the canonical, deduplicated precedence family with production UWrMaxSAT:
 
@@ -179,6 +250,9 @@ worker-process startup and CSV/XLSX export. `input_parsing_seconds`,
 `model_construction_seconds`, `model_build_seconds`, and
 `solve_and_validate_seconds` retain the components. A timeout is a right-censored
 controller cutoff and is marked by `runtime_censored=TRUE`.
+For MIP/CP, `backend_model_construction_seconds` separately measures
+translation of the solver-neutral IR/specification into the commercial API;
+it is included in `solve_and_validate_seconds` and in the end-to-end runtime.
 This start point matches the historical `ORG_old.py` total timer, which begins
 immediately before `read_input()`. The 2022 paper labels its table entries as
 solving times but does not state a more precise timer boundary, so both the
@@ -191,6 +265,12 @@ optimizer-specific bound/totalizer variables, clauses, and literals are kept in
 separate `optimizer_added_*` fields, together with solver-call and bound-encoding
 counts. SAT incumbents are sent to the controller during optimization, so a hard
 timeout retains the best validated objective found so far.
+
+MIP rows instead report binary/integer/continuous variables, linear
+constraints, nonzeros, best bound, MIP gap, and branch-and-bound nodes. CP rows
+report meeting-time integer variables, linear/global constraints, best bound,
+gap, branches, and fails. Clause and constraint counts are intentionally not
+presented as the same metric.
 
 ## Legacy ORG MaxSAT baseline
 
@@ -233,3 +313,8 @@ python3 src/B2B_Instance.py \
 python3 -m pip install -r src/requirements.txt
 python3 -m unittest discover -s tests -v
 ```
+
+The exact-model unit tests exercise the shared MIP coefficient matrix, sparse
+occupancy variables, zero-based idle identity, CP global-constraint
+specification, configuration expansion, and no-fallback behavior without
+requiring a commercial license.

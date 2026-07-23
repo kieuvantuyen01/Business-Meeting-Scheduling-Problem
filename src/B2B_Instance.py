@@ -603,6 +603,122 @@ def reduce_domains_with_precedence(
     return [sorted(domain) for domain in domains], initial_count, reduced_count
 
 
+def objective_participants(inst: B2BInstance) -> tuple[int, ...]:
+    """Return P* = {p: participant p attends at least two meetings}."""
+
+    return tuple(
+        participant
+        for participant, meetings in enumerate(inst.meetings_by_business)
+        if len(meetings) >= 2
+    )
+
+
+def compute_solution_stats(
+    inst: B2BInstance,
+    assignment: list[int],
+    *,
+    participants: tuple[int, ...] | None = None,
+) -> B2BSolutionStats:
+    """Compute IdleRange(P*) statistics independently of any solver model."""
+
+    selected_participants = (
+        objective_participants(inst) if participants is None else participants
+    )
+    meetings_per_slot: list[list[int]] = [
+        [] for _ in range(inst.n_total_slots)
+    ]
+    for meeting, slot in enumerate(assignment):
+        if 0 <= slot < inst.n_total_slots:
+            meetings_per_slot[slot].append(meeting)
+
+    participant_idle = [0] * inst.n_business
+    for participant, meetings in enumerate(inst.meetings_by_business):
+        slots = sorted(
+            assignment[meeting]
+            for meeting in meetings
+            if 0 <= meeting < len(assignment) and assignment[meeting] >= 0
+        )
+        if len(slots) >= 2:
+            participant_idle[participant] = (
+                slots[-1] - slots[0] + 1 - len(slots)
+            )
+
+    objective_values = [
+        participant_idle[participant]
+        for participant in selected_participants
+    ]
+    objective_gap = (
+        max(objective_values) - min(objective_values)
+        if len(objective_values) >= 2
+        else 0
+    )
+    all_participant_gap = (
+        max(participant_idle) - min(participant_idle)
+        if len(participant_idle) >= 2
+        else 0
+    )
+    return B2BSolutionStats(
+        total_breaks=sum(participant_idle),
+        participant_breaks=participant_idle,
+        objective_gap=objective_gap,
+        all_participant_idle_range=all_participant_gap,
+        objective_participants=selected_participants,
+        meetings_per_slot=meetings_per_slot,
+        busy_participants_per_slot=[
+            2 * len(meetings) for meetings in meetings_per_slot
+        ],
+    )
+
+
+def validate_schedule_assignment(
+    inst: B2BInstance,
+    assignment: list[int],
+    *,
+    graph: PrecedenceGraphInfo | None = None,
+) -> list[str]:
+    """Check a schedule against the original hard B2B semantics."""
+
+    errors: list[str] = []
+    if len(assignment) != inst.n_meetings:
+        return ["assignment length does not match nMeetings"]
+
+    for meeting, slot in enumerate(assignment):
+        if slot not in original_eligible_slots(inst, meeting):
+            errors.append(
+                f"meeting {meeting + 1} assigned to an ineligible slot "
+                f"{slot + 1 if slot >= 0 else slot}"
+            )
+
+    for participant, meetings in enumerate(inst.meetings_by_business):
+        seen: dict[int, int] = {}
+        for meeting in meetings:
+            slot = assignment[meeting]
+            if slot in seen:
+                errors.append(
+                    f"participant {participant + 1} collision at slot {slot + 1}: "
+                    f"meetings {seen[slot] + 1} and {meeting + 1}"
+                )
+            seen[slot] = meeting
+
+    for slot in range(inst.n_total_slots):
+        count = sum(assigned == slot for assigned in assignment)
+        if count > inst.n_tables:
+            errors.append(
+                f"capacity exceeded at slot {slot + 1}: "
+                f"{count}>{inst.n_tables}"
+            )
+
+    precedence_graph = graph or build_precedence_graph(inst.precedences)
+    for post, preds in enumerate(precedence_graph.direct_predecessors):
+        for pred in preds:
+            if assignment[pred] >= assignment[post]:
+                errors.append(
+                    f"precedence violation: meeting {pred + 1} "
+                    f"!< meeting {post + 1}"
+                )
+    return errors
+
+
 def resolve_precedence_configuration(
     precedence_mode: str | None,
     precedence_encoding: str | None,
@@ -1576,93 +1692,20 @@ class B2BSATModel:
         return errors
 
     def compute_stats(self, assignment: list[int]) -> B2BSolutionStats:
-        meetings_per_slot: list[list[int]] = [
-            [] for _ in range(self.inst.n_total_slots)
-        ]
-        for meeting, slot in enumerate(assignment):
-            if 0 <= slot < self.inst.n_total_slots:
-                meetings_per_slot[slot].append(meeting)
-
-        participant_breaks = [0] * self.inst.n_business
-        for participant, meetings in enumerate(self.inst.meetings_by_business):
-            slots = sorted(
-                assignment[meeting]
-                for meeting in meetings
-                if assignment[meeting] >= 0
-            )
-            if len(slots) >= 2:
-                participant_breaks[participant] = (
-                    slots[-1] - slots[0] + 1 - len(slots)
-                )
-
-        objective_values = [
-            participant_breaks[participant]
-            for participant in self.objective_participants
-        ]
-        objective_gap = (
-            max(objective_values) - min(objective_values)
-            if len(objective_values) >= 2
-            else 0
-        )
-        all_participant_gap = (
-            max(participant_breaks) - min(participant_breaks)
-            if len(participant_breaks) >= 2
-            else 0
-        )
-
-        return B2BSolutionStats(
-            total_breaks=sum(participant_breaks),
-            participant_breaks=participant_breaks,
-            objective_gap=objective_gap,
-            all_participant_idle_range=all_participant_gap,
-            objective_participants=self.objective_participants,
-            meetings_per_slot=meetings_per_slot,
-            busy_participants_per_slot=[
-                2 * len(meetings) for meetings in meetings_per_slot
-            ],
+        return compute_solution_stats(
+            self.inst,
+            assignment,
+            participants=self.objective_participants,
         )
 
     def validate_assignment(self, assignment: list[int]) -> list[str]:
         """Check a decoded schedule against the original hard B2B semantics."""
 
-        errors: list[str] = []
-        if len(assignment) != self.inst.n_meetings:
-            return ["assignment length does not match nMeetings"]
-
-        for meeting, slot in enumerate(assignment):
-            if slot not in original_eligible_slots(self.inst, meeting):
-                errors.append(
-                    f"meeting {meeting + 1} assigned to an ineligible slot "
-                    f"{slot + 1 if slot >= 0 else slot}"
-                )
-
-        for participant, meetings in enumerate(self.inst.meetings_by_business):
-            seen: dict[int, int] = {}
-            for meeting in meetings:
-                slot = assignment[meeting]
-                if slot in seen:
-                    errors.append(
-                        f"participant {participant + 1} collision at slot {slot + 1}: "
-                        f"meetings {seen[slot] + 1} and {meeting + 1}"
-                    )
-                seen[slot] = meeting
-
-        for slot in range(self.inst.n_total_slots):
-            count = sum(assigned == slot for assigned in assignment)
-            if count > self.inst.n_tables:
-                errors.append(
-                    f"capacity exceeded at slot {slot + 1}: "
-                    f"{count}>{self.inst.n_tables}"
-                )
-
-        for post, preds in enumerate(self.graph.direct_predecessors):
-            for pred in preds:
-                if assignment[pred] >= assignment[post]:
-                    errors.append(
-                        f"precedence violation: meeting {pred + 1} "
-                        f"!< meeting {post + 1}"
-                    )
-        return errors
+        return validate_schedule_assignment(
+            self.inst,
+            assignment,
+            graph=self.graph,
+        )
 
 
 # ---------------------------------------------------------------------------
