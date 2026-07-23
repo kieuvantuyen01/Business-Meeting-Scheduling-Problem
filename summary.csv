@@ -1,7 +1,0 @@
-instance,staircase,solver,basic,imp1,imp2,imp12,imp12+
-forum-13.original,no,incremental,6.1 0,3.2 0,7.2 0,4.4 0,2.7 0
-forum-13.original,yes,incremental,6.0 0,3.2 0,7.2 0,4.4 0,2.7 0
-forum-13.original,no,maxsat,3.5 0,1.7 0,6.0 0,2.8 0,2.3 0
-forum-13.original,yes,maxsat,3.5 0,1.7 0,6.0 0,2.7 0,2.2 0
-forum-13.original,no,multiple,5.7 0,1.6 0,6.6 0,4.1 0,1.6 0
-forum-13.original,yes,multiple,5.7 0,1.6 0,6.6 0,4.1 0,1.6 0
