@@ -9,12 +9,16 @@ TIMEOUT="${TIMEOUT:-7200}"
 RUN_ID="${RUN_ID:-official-$(date -u +%Y%m%dT%H%M%SZ)}"
 
 UWRMAXSAT_BIN="${UWRMAXSAT_BIN:-$HOME/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat}"
+MANIFEST="${MANIFEST:-$ROOT/instances_manifest.csv}"
+NOVES_DIR="${NOVES_DIR:-$ROOT/../noves}"
 
-DATA_DIRS=(
-  data_table03_origin
-  data_table06_forb
-  data_table07_fixed
-  data_table08_prec
+# Tất cả nhóm lấy theo canonical manifest. Manifest tách đúng family và gom
+# 14 cặp path alias của Forbidden thành 26 nội dung cần giải.
+DATASET_SPECS=(
+  "data_table03_origin|original"
+  "data_table06_forb|forbidden"
+  "data_table07_fixed|fixed"
+  "data_table08_prec|precedence"
 )
 
 # Kích hoạt môi trường Python.
@@ -33,12 +37,28 @@ if [[ ! -f "$ROOT/src/Main.py" || ! -f "$ROOT/src/ORG_new.py" ]]; then
     exit 1
 fi
 
-for data_dir in "${DATA_DIRS[@]}"; do
-    if [[ ! -d "$ROOT/$data_dir" ]]; then
-        echo "ERROR: không tồn tại folder $data_dir"
-        exit 1
-    fi
-done
+if [[ ! -f "$MANIFEST" ]]; then
+    echo "ERROR: không tồn tại canonical manifest:"
+    echo "  $MANIFEST"
+    exit 1
+fi
+
+if [[ ! -d "$NOVES_DIR" ]]; then
+    echo "ERROR: không tồn tại official noves directory:"
+    echo "  $NOVES_DIR"
+    exit 1
+fi
+
+forbidden_path_count="$(
+    find "$NOVES_DIR" -maxdepth 1 -type f \
+        \( -name '*.forb0003.dzn' -o -name '*.forb0007.dzn' \) \
+        | wc -l | tr -d ' '
+)"
+if [[ "$forbidden_path_count" != "40" ]]; then
+    echo "ERROR: noves phải chứa đúng 40 official Forbidden paths;"
+    echo "tìm thấy $forbidden_path_count."
+    exit 1
+fi
 
 # Kiểm tra UWrMaxSAT.
 if [[ ! -x "$UWRMAXSAT_BIN" ]]; then
@@ -65,10 +85,20 @@ mkdir -p \
     echo "root=$ROOT"
     echo "timeout_per_configuration=$TIMEOUT"
     echo "main_encoding_variant=imp12+"
-    echo "main_solver=all"
+    echo "main_solver=sat_all"
     echo "main_domain_mode=both"
     echo "main_sat_backend=cadical"
     echo "main_maxsat_backend=uwrmaxsat"
+    echo "input_mode=canonical_manifest_content_deduplicated"
+    echo "manifest=$MANIFEST"
+    echo "manifest_sha256=$(sha256sum "$MANIFEST" | awk '{print $1}')"
+    echo "noves_dir=$NOVES_DIR"
+    echo "forbidden_path_count=$forbidden_path_count"
+    echo "expected_official_paths=140"
+    echo "expected_unique_contents=126"
+    echo "expected_org_rows=126"
+    echo "expected_main_rows=1476"
+    echo "expected_logical_main_path_cells=1560"
     echo "uwrmaxsat_bin=$UWRMAXSAT_BIN"
     echo "uwrmaxsat_sha256=$UWRMAXSAT_SHA256"
     echo "git_commit=$(git rev-parse HEAD 2>/dev/null || true)"
@@ -133,10 +163,12 @@ echo "UWrMaxSAT: $UWRMAXSAT_BIN"
 # Một run cho mỗi canonical instance.
 # ============================================================
 
-for data_dir in "${DATA_DIRS[@]}"; do
+for dataset_spec in "${DATASET_SPECS[@]}"; do
+    IFS='|' read -r data_dir family <<< "$dataset_spec"
+    input_args=(--manifest "$MANIFEST" --family "$family")
     run_stage "org" "$data_dir" \
         python -u src/ORG_new.py \
-            --data-dir "$data_dir" \
+            "${input_args[@]}" \
             --timeout "$TIMEOUT" \
             --uwrmaxsat-bin "$UWRMAXSAT_BIN" \
             --uwrmaxsat-sha256 "$UWRMAXSAT_SHA256" \
@@ -157,11 +189,13 @@ done
 # - instance có precedence: đủ bốn P×G
 # ============================================================
 
-for data_dir in "${DATA_DIRS[@]}"; do
+for dataset_spec in "${DATASET_SPECS[@]}"; do
+    IFS='|' read -r data_dir family <<< "$dataset_spec"
+    input_args=(--manifest "$MANIFEST" --family "$family")
     run_stage "main" "$data_dir" \
         python -u src/Main.py \
-            --data-dir "$data_dir" \
-            --solver all \
+            "${input_args[@]}" \
+            --solver sat_all \
             --maxsat-backend uwrmaxsat \
             --uwrmaxsat-bin "$UWRMAXSAT_BIN" \
             --uwrmaxsat-sha256 "$UWRMAXSAT_SHA256" \
@@ -179,6 +213,16 @@ for data_dir in "${DATA_DIRS[@]}"; do
         exit "$rc"
     fi
 done
+
+run_stage "validation" "official_matrix" \
+    python -u src/Validate_Official_Run.py \
+        --output "$OUT" \
+        --noves-dir "$NOVES_DIR"
+rc=$?
+if (( rc != 0 )); then
+    echo "ERROR: kết quả không đạt ma trận benchmark chính thức."
+    exit "$rc"
+fi
 
 echo "finished_utc=$(date -u --iso-8601=seconds)" \
     >> "$OUT/environment.txt"

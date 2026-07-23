@@ -214,10 +214,51 @@ python3 src/Dataset_Manifest.py \
 ```
 
 With no `--instance`, `--data-dir`, or `--manifest`, `Main.py` uses the checked-in
-manifest. Manifest and directory inputs are content-deduplicated; `--family`
-selects `original`, `forbidden`, `fixed`, or `precedence`. Every result records
-the content ID, full SHA-256, official aliases, repository aliases, source page,
-and archive hash.
+manifest. Manifest and directory inputs are content-deduplicated by default;
+`--keep-path-aliases` disables deduplication for an explicit `--data-dir`, and
+`--family` selects `original`, `forbidden`, `fixed`, or `precedence`. Every
+result records the content ID, full SHA-256, official aliases, repository
+aliases, source page, and archive hash.
+
+The official runner selects every family from the canonical manifest. This
+filters the 40 derived Fixed copies under `data_table06_forb` out of the
+Forbidden group. The 40 official Forbidden paths represent 26 unique contents;
+the solver runs once per content, while `source_alias_paths` retains coverage
+of all 40 names from `noves/`.
+
+| Family | Official paths | Solved contents | Main configurations/content | Computed Main rows | Computed ORG rows |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| original | 20 | 20 | 6 | 120 | 20 |
+| forbidden | 40 | 26 | 6 | 156 | 26 |
+| fixed | 40 | 40 | 6 | 240 | 40 |
+| precedence | 40 | 40 | 24 | 960 | 40 |
+| **Total** | **140** | **126** |  | **1476** | **126** |
+
+If each alias is expanded as a separate logical table row, coverage is still
+1560 Main path-configuration cells and 140 ORG path cells; the 84 Main and 14
+ORG alias cells do not require another solver run.
+
+Run it with:
+
+```bash
+NOVES_DIR=/absolute/path/to/noves \
+UWRMAXSAT_BIN=/absolute/path/to/uwrmaxsat \
+./run_official_ic12p.sh
+```
+
+Before archiving the result, the runner calls `src/Validate_Official_Run.py`.
+The archive is created only when 1476 computed Main rows and 126 computed ORG
+rows pass their result and metadata checks and their aliases cover all 140
+official paths.
+
+To clean an older run in which the Fixed rows leaked into
+`data_table06_forb`, without rerunning a solver:
+
+```bash
+python3 src/Normalize_Official_Run.py \
+  --source output/<old-run> \
+  --output output/<old-run>-normalized
+```
 
 ## Configuration identity
 
@@ -227,6 +268,17 @@ encoding), G (precedence graph), B (`SpanThreshold`), O (`IdleRangePstar`), S
 `R-SS-DC-ST-IRP-UW-IC12P` contains all seven factors. The versioned
 `configuration_id`/`configuration_key` additionally contains their full names
 and the exact backend and is the unique machine key.
+
+The I-factor names have distinct, documented roles:
+
+| Model | CLI/machine variant | Compact label/code | Display name |
+| --- | --- | --- | --- |
+| Main | `imp12+` | `IC12P` | `IC12+` |
+| ORG old-best baseline | `org_old_best_ic12plus` | `OBIC12P` | `OldBestIC12+` |
+
+Here `P` means “plus” in compact identifiers. ORG uses `OBIC12P`, rather than
+Main's `IC12P`, so the two implied packages cannot be confused in aggregated
+results.
 
 ## Per-instance Excel logs
 
@@ -279,7 +331,8 @@ separately labelled baseline for the strongest MaxSAT formulation of the old
 paper: full meeting-slot variables, the legacy per-slot/cardinality waiting
 encoding, its implied-constraint package, and UWrMaxSAT. The adaptation uses
 `IdleRange(P*)`, has no lexicographic secondary objective, and does not generate
-the old hard fairness constraint (d=2).
+the old hard fairness constraint (d=2). Its compact configuration label is
+`ORG-F-PW-DE-PSC-IRP-UW-OBIC12P`.
 
 ```bash
 python3 src/ORG_new.py \

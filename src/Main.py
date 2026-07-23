@@ -69,6 +69,9 @@ MAXSAT_REPORTING_MARGIN_SECONDS = 0.25
 DOMAIN_CODES = {"full": "F", "reduced": "R"}
 PRECEDENCE_ENCODING_CODES = {"pairwise": "PW", "sparse_suffix": "SS"}
 PRECEDENCE_GRAPH_CODES = {"direct": "DE", "distance_closure": "DC"}
+# Compact labels use ASCII-safe codes; factor_i keeps the publication-facing
+# display name. In particular, IC12P is the compact code for display name
+# IC12+ and CLI variant imp12+.
 VARIANT_CODES = {
     "basic": "IC0",
     "imp1": "IC1",
@@ -130,6 +133,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["all", "original", "forbidden", "fixed", "precedence"],
         default="all",
         help="filter a manifest or data directory by benchmark family",
+    )
+    parser.add_argument(
+        "--keep-path-aliases",
+        action="store_true",
+        help=(
+            "with --data-dir, run every selected .dzn path even when multiple "
+            "paths have identical SHA-256 content"
+        ),
     )
     parser.add_argument(
         "--solver",
@@ -233,6 +244,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error(
             "--precedence-mode cannot be combined with independent P/G flags"
         )
+    if args.keep_path_aliases and args.data_dir is None:
+        parser.error("--keep-path-aliases requires --data-dir")
     return args
 
 
@@ -519,6 +532,7 @@ def collect_instances(
     data_dir: str | None,
     manifest: str | None = None,
     family: str = "all",
+    keep_path_aliases: bool = False,
 ) -> list[InstanceSpec]:
     if instance:
         path = Path(instance)
@@ -549,6 +563,8 @@ def collect_instances(
         ]
     if not paths:
         raise FileNotFoundError(f"No .dzn files found in {directory}")
+    if keep_path_aliases:
+        return [_instance_spec_from_paths([path]) for path in paths]
     by_hash: dict[str, list[Path]] = {}
     for path in paths:
         by_hash.setdefault(file_sha256(path), []).append(path)
@@ -1676,6 +1692,7 @@ def main(argv: list[str] | None = None) -> int:
             args.data_dir,
             args.manifest,
             args.family,
+            args.keep_path_aliases,
         )
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}")
@@ -1693,13 +1710,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}")
         return 2
-    configurations_by_content = {
-        instance.content_id: benchmark_configurations(args, instance, solvers)
+    instance_configurations = [
+        (instance, benchmark_configurations(args, instance, solvers))
         for instance in instances
-    }
+    ]
     total_runs = sum(
-        len(configurations_by_content[instance.content_id])
-        for instance in instances
+        len(configurations) for _, configurations in instance_configurations
     )
     results: list[dict[str, Any]] = []
     excel_output_dir = _excel_output_dir(args.excel_dir, args.csv)
@@ -1708,8 +1724,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"B2B conference benchmark: {total_runs} run(s), objective=IdleRange(P*)")
     print(
-        f"Canonical instances: {len(instances)} "
-        f"(family={args.family}, SHA-256 deduplicated)"
+        f"Selected input paths: {len(instances)} "
+        f"(family={args.family}, "
+        f"content_deduplicated={not args.keep_path_aliases})"
     )
     if any(solver in SAT_SOLVERS for solver in solvers):
         domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
@@ -1723,8 +1740,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"MaxSAT backend: {args.maxsat_backend}")
     if any(solver in {"incremental", "multiple"} for solver in solvers):
         print(f"SAT backend: {args.sat_backend}")
-    for instance in instances:
-        configurations = configurations_by_content[instance.content_id]
+    for instance, configurations in instance_configurations:
         print(f"Instance {instance.instance_name}: {len(configurations)} run(s)")
         instance_results: list[dict[str, Any]] = []
         for configuration in configurations:

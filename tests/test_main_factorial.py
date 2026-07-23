@@ -11,10 +11,20 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from Main import parse_args, precedence_configurations, write_aggregate_csv
+from Main import (
+    VARIANT_CODES,
+    VARIANT_FACTOR_NAMES,
+    parse_args,
+    precedence_configurations,
+    write_aggregate_csv,
+)
 
 
 class MainPrecedenceFactorialTests(unittest.TestCase):
+    def test_imp12_plus_machine_code_and_display_name_are_explicit(self) -> None:
+        self.assertEqual(VARIANT_CODES["imp12+"], "IC12P")
+        self.assertEqual(VARIANT_FACTOR_NAMES["imp12+"], "IC12+")
+
     def test_default_and_explicit_cli_generate_the_expected_cells(self) -> None:
         default_args = parse_args([])
         self.assertEqual(default_args.maxsat_backend, "uwrmaxsat")

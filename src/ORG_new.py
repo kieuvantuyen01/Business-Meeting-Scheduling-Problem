@@ -48,6 +48,14 @@ def parse_args():
         choices=['all', 'original', 'forbidden', 'fixed', 'precedence'],
         default='all',
     )
+    parser.add_argument(
+        '--keep-path-aliases',
+        action='store_true',
+        help=(
+            'with --data-dir, run every selected .dzn path even when multiple '
+            'paths have identical SHA-256 content'
+        ),
+    )
     parser.add_argument('--timeout', type=float, default=7200.0)
     parser.add_argument('--uwrmaxsat-bin')
     parser.add_argument('--uwrmaxsat-sha256')
@@ -56,6 +64,8 @@ def parse_args():
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
+    if args.keep_path_aliases and args.data_dir is None:
+        parser.error('--keep-path-aliases requires --data-dir')
     return args
 
 
@@ -76,6 +86,17 @@ EXCEL_OUTPUT_DIR = Path(ARGS.excel_dir or (Path(CSV_OUTPUT_FILE).parent / 'excel
 # Giống Main.py: lấy peak RSS của tiến trình chạy instance và toàn bộ child process.
 MEMORY_SAMPLE_INTERVAL_S = 0.05
 MEMORY_METRIC = 'peak_process_tree_rss_mb'
+ORG_IMPLIED_PACKAGE_CODE = 'OBIC12P'
+ORG_IMPLIED_PACKAGE_NAME = 'OldBestIC12+'
+ORG_ENCODING_VARIANT = 'org_old_best_ic12plus'
+ORG_CONFIGURATION_LABEL = (
+    f'ORG-F-PW-DE-PSC-IRP-UW-{ORG_IMPLIED_PACKAGE_CODE}'
+)
+ORG_CONFIGURATION_ID = (
+    'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
+    'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
+    's-uwrmaxsat__i-old_best_ic12plus__fairness-none'
+)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 EXCEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -181,6 +202,7 @@ instance_specs = collect_instances(
     ARGS.data_dir,
     ARGS.manifest,
     ARGS.family,
+    ARGS.keep_path_aliases,
 )
 experiment = experiment_metadata(ARGS, None, runner_path=__file__)
 
@@ -202,7 +224,10 @@ if expected_uwr_sha256 and expected_uwr_sha256 != UWRMAXSAT_BINARY_SHA256:
         f'expected {expected_uwr_sha256}, got {UWRMAXSAT_BINARY_SHA256}'
     )
 
-print(f'Found {len(instance_specs)} canonical input contents')
+print(
+    f'Found {len(instance_specs)} selected input paths '
+    f'(content_deduplicated={not ARGS.keep_path_aliases})'
+)
 
 test_counter = 0
 
@@ -1176,35 +1201,27 @@ for instance_spec in instance_specs:
     baseline_result = {
         **instance_result_metadata(instance_spec),
         **experiment,
-        'configuration_label': 'ORG-F-PW-DE-PSC-IRP-UW-IC12P',
-        'configuration_id': (
-            'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
-            'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
-            's-uwrmaxsat__i-ic12plus__fairness-none'
-        ),
-        'configuration_key': (
-            'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
-            'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
-            's-uwrmaxsat__i-ic12plus__fairness-none'
-        ),
+        'configuration_label': ORG_CONFIGURATION_LABEL,
+        'configuration_id': ORG_CONFIGURATION_ID,
+        'configuration_key': ORG_CONFIGURATION_ID,
         'factor_m': 'ORGFull',
         'factor_p': 'Pairwise',
         'factor_g': 'Direct-E',
         'factor_b': 'PerSlotCardinality',
         'factor_o': 'IdleRangePstar',
         'factor_s': 'UWrMaxSAT',
-        'factor_i': 'OldBestIC12+',
+        'factor_i': ORG_IMPLIED_PACKAGE_NAME,
         'domain_mode': 'legacy_full',
         'precedence_encoding': 'pairwise',
         'precedence_graph': 'direct',
         'optimization_engine': 'UWrMaxSAT',
         'solver_backend': solver_used,
         'solver_version': f'binary-sha256:{UWRMAXSAT_BINARY_SHA256}',
-        'encoding_variant': 'org_old_best_ic12+',
+        'encoding_variant': ORG_ENCODING_VARIANT,
         'idle_encoding': 'per_slot_cardinality',
         'objective': 'internal_idle_slot_range_pstar',
         'objective_code': 'IRP',
-        'implied_constraints_code': 'OldBestIC12+',
+        'implied_constraints_code': ORG_IMPLIED_PACKAGE_CODE,
         'sat_result': status_to_sat_result(solve_status),
         'status': solve_status,
         'runtime_seconds': round(total_time, 6),
@@ -1257,12 +1274,15 @@ for instance_spec in instance_specs:
         'precedence_pairwise_clauses': None,
         'precedence_sparse_link_clauses': 0,
         'precedence_unique_suffix_cuts': 0,
+        'precedence_mode': 'traditional',
+        'precedence_configuration': 'pairwise+direct',
         'solver': solver_used,
         'solver_binary': str(UWRMAXSAT_BINARY),
         'solver_binary_sha256': UWRMAXSAT_BINARY_SHA256,
         'solver_command': shlex.join(solver_command),
         'solver_message': '',
         'solver_cost': solver_cost,
+        'objective_value': solver_cost,
         'best_value': solver_cost,
         'proven_optimum': solver_cost if solve_status == 'OPTIMAL' else None,
         'idle_range_pstar': idle_range_pstar,
