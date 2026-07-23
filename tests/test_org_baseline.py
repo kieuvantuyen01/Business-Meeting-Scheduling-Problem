@@ -56,7 +56,30 @@ class OrgBaselineTests(unittest.TestCase):
             self.assertEqual(rows[0]["factor_m"], "ORGFull")
             self.assertEqual(rows[0]["factor_o"], "IdleRangePstar")
             self.assertEqual(rows[0]["factor_s"], "UWrMaxSAT")
+            self.assertEqual(rows[0]["factor_i"], "OldBestIC12+")
+            self.assertEqual(
+                rows[0]["configuration_label"],
+                "ORG-F-PW-DE-PSC-IRP-UW-OBIC12P",
+            )
+            self.assertEqual(
+                rows[0]["encoding_variant"],
+                "org_old_best_ic12plus",
+            )
+            self.assertEqual(
+                rows[0]["implied_constraints_code"],
+                "OBIC12P",
+            )
             self.assertIn("fairness-none", rows[0]["configuration_id"])
+            self.assertIn(
+                "i-old_best_ic12plus",
+                rows[0]["configuration_id"],
+            )
+            self.assertEqual(rows[0]["precedence_mode"], "traditional")
+            self.assertEqual(
+                rows[0]["precedence_configuration"],
+                "pairwise+direct",
+            )
+            self.assertEqual(rows[0]["objective_value"], "")
             self.assertEqual(rows[0]["n_soft_clauses"], rows[0]["soft_weight_sum"])
 
             workbook = excel_dir / "tic-12.original.xlsx"
@@ -101,6 +124,7 @@ class OrgBaselineTests(unittest.TestCase):
             with csv_path.open(newline="", encoding="utf-8") as stream:
                 row = next(csv.DictReader(stream))
             self.assertEqual(row["status"], "TIMEOUT")
+            self.assertEqual(row["objective_value"], "7")
             self.assertEqual(row["best_value"], "7")
             self.assertEqual(row["proven_optimum"], "")
 
