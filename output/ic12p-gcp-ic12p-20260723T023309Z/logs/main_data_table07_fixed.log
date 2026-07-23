@@ -1,0 +1,1291 @@
+B2B conference benchmark: 240 run(s), objective=IdleRange(P*)
+Canonical instances: 40 (family=all, SHA-256 deduplicated)
+Domain mode(s): full, reduced
+MaxSAT backend: uwrmaxsat
+SAT backend: cadical
+Instance ticf-13crafb.fixed020-Forb: P×G=pairwise+direct
+[1/240] ticf-13crafb.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=20
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 17: SAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.461915s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[2/240] ticf-13crafb.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=20
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 17: SAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.819228s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[3/240] ticf-13crafb.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.42s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=17 (cost=17)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=17 | time=0.74408s | config=F-PW-DE-ST-IRP-UW-IC12P
+[4/240] ticf-13crafb.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=20
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 17: SAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.355568s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[5/240] ticf-13crafb.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=20
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 17: SAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.594747s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[6/240] ticf-13crafb.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.49s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=17 (cost=17)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=17 | time=0.55262s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafb.fixed020-Forb.xlsx
+Instance forum-13crafc.fixed040-Forb: P×G=pairwise+direct
+[7/240] forum-13crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.327629s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[8/240] forum-13crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.573403s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[9/240] forum-13crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.56s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.578086s | config=F-PW-DE-ST-IRP-UW-IC12P
+[10/240] forum-13crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.195972s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[11/240] forum-13crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.348744s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[12/240] forum-13crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.63s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.328892s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13crafc.fixed040-Forb.xlsx
+Instance forumt-14crafd.fixed040-Forb: P×G=pairwise+direct
+[13/240] forumt-14crafd.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.096284s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[14/240] forumt-14crafd.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.097731s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[15/240] forumt-14crafd.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.186563s | config=F-PW-DE-ST-IRP-UW-IC12P
+[16/240] forumt-14crafd.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.067221s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[17/240] forumt-14crafd.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.06848s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[18/240] forumt-14crafd.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.120624s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafd.fixed040-Forb.xlsx
+Instance tic-14crafd.fixed020-Forb: P×G=pairwise+direct
+[19/240] tic-14crafd.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+    SAT | IdleRange(P*)=3 | time=0.181874s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[20/240] tic-14crafd.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+    SAT | IdleRange(P*)=3 | time=0.244776s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[21/240] tic-14crafd.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.61s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.363485s | config=F-PW-DE-ST-IRP-UW-IC12P
+[22/240] tic-14crafd.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+    SAT | IdleRange(P*)=3 | time=0.150578s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[23/240] tic-14crafd.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+    SAT | IdleRange(P*)=3 | time=0.209996s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[24/240] tic-14crafd.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.63s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.317439s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafd.fixed020-Forb.xlsx
+Instance forum-13crafb.fixed020-Forb: P×G=pairwise+direct
+[25/240] forum-13crafb.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=19
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 17: SAT
+    SAT | IdleRange(P*)=17 | time=0.458681s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[26/240] forum-13crafb.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=19
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: UNSAT
+[MultipleSAT] IdleRange(P*) <= 17: SAT
+    SAT | IdleRange(P*)=17 | time=0.73248s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[27/240] forum-13crafb.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.43s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=17 (cost=17)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=17 | time=0.735823s | config=F-PW-DE-ST-IRP-UW-IC12P
+[28/240] forum-13crafb.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=20
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 17: SAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.341481s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[29/240] forum-13crafb.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=20
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 17: SAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: UNSAT
+    SAT | IdleRange(P*)=17 | time=0.572934s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[30/240] forum-13crafb.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.5s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=17 (cost=17)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=17 | time=0.522733s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13crafb.fixed020-Forb.xlsx
+Instance forum-13.fixed040-Forb: P×G=pairwise+direct
+[31/240] forum-13.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.319819s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[32/240] forum-13.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.570512s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[33/240] forum-13.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.587736s | config=F-PW-DE-ST-IRP-UW-IC12P
+[34/240] forum-13.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.194562s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[35/240] forum-13.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.337246s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[36/240] forum-13.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.325918s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13.fixed040-Forb.xlsx
+Instance tic-13.fixed040-Forb: P×G=pairwise+direct
+[37/240] tic-13.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.110286s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[38/240] tic-13.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.160024s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[39/240] tic-13.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.186536s | config=F-PW-DE-ST-IRP-UW-IC12P
+[40/240] tic-13.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.078903s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[41/240] tic-13.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.106903s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[42/240] tic-13.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.118533s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13.fixed040-Forb.xlsx
+Instance tic-13crafc.fixed040-Forb: P×G=pairwise+direct
+[43/240] tic-13crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.108432s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[44/240] tic-13crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.164878s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[45/240] tic-13crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.189119s | config=F-PW-DE-ST-IRP-UW-IC12P
+[46/240] tic-13crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.083073s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[47/240] tic-13crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.120366s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[48/240] tic-13crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.68s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.132755s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13crafc.fixed040-Forb.xlsx
+Instance tic-14crafa.fixed040-Forb: P×G=pairwise+direct
+[49/240] tic-14crafa.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.099966s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[50/240] tic-14crafa.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.09754s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[51/240] tic-14crafa.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.184829s | config=F-PW-DE-ST-IRP-UW-IC12P
+[52/240] tic-14crafa.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.069968s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[53/240] tic-14crafa.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.070282s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[54/240] tic-14crafa.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.124319s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafa.fixed040-Forb.xlsx
+Instance tic-12crafc.fixed020-Forb: P×G=pairwise+direct
+[55/240] tic-12crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.070148s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[56/240] tic-12crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.106176s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[57/240] tic-12crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.15737s | config=F-PW-DE-ST-IRP-UW-IC12P
+[58/240] tic-12crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.062448s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[59/240] tic-12crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.092637s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[60/240] tic-12crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.7s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.142177s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-12crafc.fixed020-Forb.xlsx
+Instance forum-13crafb.fixed040-Forb: P×G=pairwise+direct
+[61/240] forum-13crafb.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.264012s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[62/240] forum-13crafb.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.2614s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[63/240] forum-13crafb.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+    UNSAT | IdleRange(P*)=None | time=0.530085s | config=F-PW-DE-ST-IRP-UW-IC12P
+[64/240] forum-13crafb.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.159649s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[65/240] forum-13crafb.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.158403s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[66/240] forum-13crafb.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+    UNSAT | IdleRange(P*)=None | time=0.332695s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13crafb.fixed040-Forb.xlsx
+Instance forumt-14crafc.fixed040-Forb: P×G=pairwise+direct
+[67/240] forumt-14crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.095924s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[68/240] forumt-14crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.095663s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[69/240] forumt-14crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.187137s | config=F-PW-DE-ST-IRP-UW-IC12P
+[70/240] forumt-14crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.066257s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[71/240] forumt-14crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.069615s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[72/240] forumt-14crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.120356s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafc.fixed040-Forb.xlsx
+Instance forumt-14crafe.fixed040-Forb: P×G=pairwise+direct
+[73/240] forumt-14crafe.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.096106s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[74/240] forumt-14crafe.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.09722s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[75/240] forumt-14crafe.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.186635s | config=F-PW-DE-ST-IRP-UW-IC12P
+[76/240] forumt-14crafe.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.065884s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[77/240] forumt-14crafe.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.066657s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[78/240] forumt-14crafe.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.117832s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafe.fixed040-Forb.xlsx
+Instance tic-12.fixed040-Forb: P×G=pairwise+direct
+[79/240] tic-12.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.027446s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[80/240] tic-12.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.028622s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[81/240] tic-12.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.72s
+    UNSAT | IdleRange(P*)=None | time=0.059049s | config=F-PW-DE-ST-IRP-UW-IC12P
+[82/240] tic-12.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.019284s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[83/240] tic-12.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.019039s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[84/240] tic-12.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.73s
+    UNSAT | IdleRange(P*)=None | time=0.035975s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-12.fixed040-Forb.xlsx
+Instance tic-14crafa.fixed020-Forb: P×G=pairwise+direct
+[85/240] tic-14crafa.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.178187s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[86/240] tic-14crafa.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.251782s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[87/240] tic-14crafa.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.61s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.261087s | config=F-PW-DE-ST-IRP-UW-IC12P
+[88/240] tic-14crafa.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.148459s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[89/240] tic-14crafa.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.208981s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[90/240] tic-14crafa.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.63s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.224719s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafa.fixed020-Forb.xlsx
+Instance tic-13crafc.fixed020-Forb: P×G=pairwise+direct
+[91/240] tic-13crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.13954s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[92/240] tic-13crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.203924s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[93/240] tic-13crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.65s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.311066s | config=F-PW-DE-ST-IRP-UW-IC12P
+[94/240] tic-13crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.125478s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[95/240] tic-13crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.18267s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[96/240] tic-13crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.66s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.283389s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13crafc.fixed020-Forb.xlsx
+Instance forumt-14crafc.fixed020-Forb: P×G=pairwise+direct
+[97/240] forumt-14crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.169545s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[98/240] forumt-14crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.245854s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[99/240] forumt-14crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.366452s | config=F-PW-DE-ST-IRP-UW-IC12P
+[100/240] forumt-14crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.148027s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[101/240] forumt-14crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.196032s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[102/240] forumt-14crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.64s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.301004s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafc.fixed020-Forb.xlsx
+Instance tic-13crafb.fixed020-Forb: P×G=pairwise+direct
+[103/240] tic-13crafb.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+[IncrementalSAT] IdleRange(P*) <= 0: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 1: SAT
+    SAT | IdleRange(P*)=1 | time=0.142395s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[104/240] tic-13crafb.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+[MultipleSAT] IdleRange(P*) <= 0: UNSAT
+[MultipleSAT] IdleRange(P*) <= 1: SAT
+    SAT | IdleRange(P*)=1 | time=0.199034s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[105/240] tic-13crafb.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.64s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=1 (cost=1)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=1 | time=0.214633s | config=F-PW-DE-ST-IRP-UW-IC12P
+[106/240] tic-13crafb.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+[IncrementalSAT] IdleRange(P*) <= 0: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 1: SAT
+    SAT | IdleRange(P*)=1 | time=0.121222s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[107/240] tic-13crafb.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+[MultipleSAT] IdleRange(P*) <= 0: UNSAT
+[MultipleSAT] IdleRange(P*) <= 1: SAT
+    SAT | IdleRange(P*)=1 | time=0.170945s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[108/240] tic-13crafb.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.66s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=1 (cost=1)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=1 | time=0.176749s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13crafb.fixed020-Forb.xlsx
+Instance forumt-14.fixed020-Forb: P×G=pairwise+direct
+[109/240] forumt-14.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.173782s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[110/240] forumt-14.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.247118s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[111/240] forumt-14.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.359243s | config=F-PW-DE-ST-IRP-UW-IC12P
+[112/240] forumt-14.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+[IncrementalSAT] IdleRange(P*) <= 0: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+    SAT | IdleRange(P*)=2 | time=0.138333s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[113/240] forumt-14.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+[MultipleSAT] IdleRange(P*) <= 0: UNSAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+    SAT | IdleRange(P*)=2 | time=0.187256s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[114/240] forumt-14.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.64s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.29946s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14.fixed020-Forb.xlsx
+Instance ticf-13crafc.fixed020-Forb: P×G=pairwise+direct
+[115/240] ticf-13crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.386813s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[116/240] ticf-13crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.652721s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[117/240] ticf-13crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.5s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.630145s | config=F-PW-DE-ST-IRP-UW-IC12P
+[118/240] ticf-13crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.299544s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[119/240] ticf-13crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.497702s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[120/240] ticf-13crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.54s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.493886s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafc.fixed020-Forb.xlsx
+Instance tic-14crafc.fixed040-Forb: P×G=pairwise+direct
+[121/240] tic-14crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.099305s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[122/240] tic-14crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.1044s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[123/240] tic-14crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.188348s | config=F-PW-DE-ST-IRP-UW-IC12P
+[124/240] tic-14crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.073903s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[125/240] tic-14crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.075671s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[126/240] tic-14crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.128258s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafc.fixed040-Forb.xlsx
+Instance forumt-14crafe.fixed020-Forb: P×G=pairwise+direct
+[127/240] forumt-14crafe.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.180788s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[128/240] forumt-14crafe.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.259183s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[129/240] forumt-14crafe.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.61s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.266224s | config=F-PW-DE-ST-IRP-UW-IC12P
+[130/240] forumt-14crafe.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.147433s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[131/240] forumt-14crafe.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.203257s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[132/240] forumt-14crafe.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.64s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.211944s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafe.fixed020-Forb.xlsx
+Instance ticf-13crafa.fixed020-Forb: P×G=pairwise+direct
+[133/240] ticf-13crafa.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.376251s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[134/240] ticf-13crafa.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.630887s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[135/240] ticf-13crafa.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.5s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.619391s | config=F-PW-DE-ST-IRP-UW-IC12P
+[136/240] ticf-13crafa.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.295096s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[137/240] ticf-13crafa.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.505384s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[138/240] ticf-13crafa.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.54s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.498454s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafa.fixed020-Forb.xlsx
+Instance forum-13.fixed020-Forb: P×G=pairwise+direct
+[139/240] forum-13.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.369356s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[140/240] forum-13.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.646221s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[141/240] forum-13.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.5s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.622559s | config=F-PW-DE-ST-IRP-UW-IC12P
+[142/240] forum-13.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.291537s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[143/240] forum-13.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.47216s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[144/240] forum-13.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.470544s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13.fixed020-Forb.xlsx
+Instance tic-13crafb.fixed040-Forb: P×G=pairwise+direct
+[145/240] tic-13crafb.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=8
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.117934s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[146/240] tic-13crafb.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=8
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.170158s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[147/240] tic-13crafb.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.66s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.188413s | config=F-PW-DE-ST-IRP-UW-IC12P
+[148/240] tic-13crafb.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=8
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.077035s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[149/240] tic-13crafb.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=8
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.102364s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[150/240] tic-13crafb.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.68s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.110132s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13crafb.fixed040-Forb.xlsx
+Instance ticf-13crafa.fixed040-Forb: P×G=pairwise+direct
+[151/240] ticf-13crafa.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.32293s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[152/240] ticf-13crafa.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.573563s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[153/240] ticf-13crafa.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.583751s | config=F-PW-DE-ST-IRP-UW-IC12P
+[154/240] ticf-13crafa.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.202733s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[155/240] ticf-13crafa.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.345332s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[156/240] ticf-13crafa.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.334022s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafa.fixed040-Forb.xlsx
+Instance tic-13.fixed020-Forb: P×G=pairwise+direct
+[157/240] tic-13.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.136823s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[158/240] tic-13.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.16802s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[159/240] tic-13.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.65s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.214116s | config=F-PW-DE-ST-IRP-UW-IC12P
+[160/240] tic-13.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=5
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.117833s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[161/240] tic-13.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=5
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+    SAT | IdleRange(P*)=3 | time=0.151645s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[162/240] tic-13.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.65s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=3 (cost=3)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=3 | time=0.188393s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-13.fixed020-Forb.xlsx
+Instance forum-14.fixed040-Forb: P×G=pairwise+direct
+[163/240] forum-14.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+    SAT | IdleRange(P*)=16 | time=0.614521s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[164/240] forum-14.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+    SAT | IdleRange(P*)=16 | time=1.148815s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[165/240] forum-14.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.28s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=16 (cost=16)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=16 | time=1.126938s | config=F-PW-DE-ST-IRP-UW-IC12P
+[166/240] forum-14.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=16
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+    SAT | IdleRange(P*)=16 | time=0.405536s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[167/240] forum-14.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=16
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+    SAT | IdleRange(P*)=16 | time=0.715123s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[168/240] forum-14.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.42s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=16 (cost=16)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=16 | time=0.687578s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-14.fixed040-Forb.xlsx
+Instance forumt-14crafd.fixed020-Forb: P×G=pairwise+direct
+[169/240] forumt-14crafd.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.170383s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[170/240] forumt-14crafd.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.235775s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[171/240] forumt-14crafd.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.61s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.262889s | config=F-PW-DE-ST-IRP-UW-IC12P
+[172/240] forumt-14crafd.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 5: SAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.140693s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[173/240] forumt-14crafd.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+[MultipleSAT] IdleRange(P*) <= 5: SAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+    SAT | IdleRange(P*)=4 | time=0.192742s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[174/240] forumt-14crafd.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.63s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.213188s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14crafd.fixed020-Forb.xlsx
+Instance tic-14crafd.fixed040-Forb: P×G=pairwise+direct
+[175/240] tic-14crafd.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.108649s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[176/240] tic-14crafd.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.104337s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[177/240] tic-14crafd.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.66s
+    UNSAT | IdleRange(P*)=None | time=0.193366s | config=F-PW-DE-ST-IRP-UW-IC12P
+[178/240] tic-14crafd.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.075207s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[179/240] tic-14crafd.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.071718s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[180/240] tic-14crafd.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.69s
+    UNSAT | IdleRange(P*)=None | time=0.122615s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafd.fixed040-Forb.xlsx
+Instance tic-12crafc.fixed040-Forb: P×G=pairwise+direct
+[181/240] tic-12crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.044706s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[182/240] tic-12crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.043848s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[183/240] tic-12crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.71s
+    UNSAT | IdleRange(P*)=None | time=0.084724s | config=F-PW-DE-ST-IRP-UW-IC12P
+[184/240] tic-12crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.032677s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[185/240] tic-12crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.031943s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[186/240] tic-12crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.72s
+    UNSAT | IdleRange(P*)=None | time=0.07056s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-12crafc.fixed040-Forb.xlsx
+Instance tic-14crafc.fixed020-Forb: P×G=pairwise+direct
+[187/240] tic-14crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.182009s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[188/240] tic-14crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.25899s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[189/240] tic-14crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.61s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.269762s | config=F-PW-DE-ST-IRP-UW-IC12P
+[190/240] tic-14crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=7
+[IncrementalSAT] IdleRange(P*) <= 3: SAT
+[IncrementalSAT] IdleRange(P*) <= 1: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.155408s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[191/240] tic-14crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=7
+[MultipleSAT] IdleRange(P*) <= 3: SAT
+[MultipleSAT] IdleRange(P*) <= 1: UNSAT
+[MultipleSAT] IdleRange(P*) <= 2: SAT
+    SAT | IdleRange(P*)=2 | time=0.21301s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[192/240] tic-14crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.63s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=2 (cost=2)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=2 | time=0.220171s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-14crafc.fixed020-Forb.xlsx
+Instance ticf-13crafc.fixed040-Forb: P×G=pairwise+direct
+[193/240] ticf-13crafc.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.329359s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[194/240] ticf-13crafc.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.58146s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[195/240] ticf-13crafc.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.590718s | config=F-PW-DE-ST-IRP-UW-IC12P
+[196/240] ticf-13crafc.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: SAT
+[IncrementalSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.198004s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[197/240] ticf-13crafc.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: SAT
+[MultipleSAT] IdleRange(P*) <= 12: SAT
+    SAT | IdleRange(P*)=12 | time=0.348698s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[198/240] ticf-13crafc.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=12 (cost=12)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=12 | time=0.33936s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafc.fixed040-Forb.xlsx
+Instance forum-14.fixed020-Forb: P×G=pairwise+direct
+[199/240] forum-14.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=19
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: SAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.938779s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[200/240] forum-14.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=19
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: SAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=1.448056s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[201/240] forum-14.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.07s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=1.337979s | config=F-PW-DE-ST-IRP-UW-IC12P
+[202/240] forum-14.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=20
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: SAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.771366s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[203/240] forum-14.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=20
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: SAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=1.099132s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[204/240] forum-14.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.16s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=1.075405s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-14.fixed020-Forb.xlsx
+Instance ticf-14crafa.fixed040-Forb: P×G=pairwise+direct
+[205/240] ticf-14crafa.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=18
+[IncrementalSAT] IdleRange(P*) <= 8: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: SAT
+    SAT | IdleRange(P*)=16 | time=0.677921s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[206/240] ticf-14crafa.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=18
+[MultipleSAT] IdleRange(P*) <= 8: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: UNSAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: SAT
+    SAT | IdleRange(P*)=16 | time=1.141196s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[207/240] ticf-14crafa.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.28s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=16 (cost=16)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=16 | time=1.161592s | config=F-PW-DE-ST-IRP-UW-IC12P
+[208/240] ticf-14crafa.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=18
+[IncrementalSAT] IdleRange(P*) <= 8: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 15: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: SAT
+    SAT | IdleRange(P*)=16 | time=0.486094s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[209/240] ticf-14crafa.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=18
+[MultipleSAT] IdleRange(P*) <= 8: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: UNSAT
+[MultipleSAT] IdleRange(P*) <= 15: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: SAT
+    SAT | IdleRange(P*)=16 | time=0.784562s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[210/240] ticf-14crafa.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.39s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=16 (cost=16)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=16 | time=0.799552s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-14crafa.fixed040-Forb.xlsx
+Instance ticf-14crafa.fixed020-Forb: P×G=pairwise+direct
+[211/240] ticf-14crafa.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=19
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 16: SAT
+[IncrementalSAT] IdleRange(P*) <= 15: SAT
+    SAT | IdleRange(P*)=15 | time=0.962077s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[212/240] ticf-14crafa.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=19
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+[MultipleSAT] IdleRange(P*) <= 16: SAT
+[MultipleSAT] IdleRange(P*) <= 15: SAT
+    SAT | IdleRange(P*)=15 | time=1.451247s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[213/240] ticf-14crafa.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.04s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=15 (cost=15)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=15 | time=1.84288s | config=F-PW-DE-ST-IRP-UW-IC12P
+[214/240] ticf-14crafa.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=18
+[IncrementalSAT] IdleRange(P*) <= 8: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 13: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 15: SAT
+[IncrementalSAT] IdleRange(P*) <= 14: UNSAT
+    SAT | IdleRange(P*)=15 | time=0.822948s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[215/240] ticf-14crafa.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=18
+[MultipleSAT] IdleRange(P*) <= 8: UNSAT
+[MultipleSAT] IdleRange(P*) <= 13: UNSAT
+[MultipleSAT] IdleRange(P*) <= 15: SAT
+[MultipleSAT] IdleRange(P*) <= 14: UNSAT
+    SAT | IdleRange(P*)=15 | time=1.180835s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[216/240] ticf-14crafa.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.09s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=15 (cost=15)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=15 | time=1.593094s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-14crafa.fixed020-Forb.xlsx
+Instance forum-13crafc.fixed020-Forb: P×G=pairwise+direct
+[217/240] forum-13crafc.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.390522s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[218/240] forum-13crafc.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.693397s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[219/240] forum-13crafc.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.5s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.627469s | config=F-PW-DE-ST-IRP-UW-IC12P
+[220/240] forum-13crafc.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=15
+[IncrementalSAT] IdleRange(P*) <= 7: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 11: SAT
+[IncrementalSAT] IdleRange(P*) <= 9: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.303388s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[221/240] forum-13crafc.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=15
+[MultipleSAT] IdleRange(P*) <= 7: UNSAT
+[MultipleSAT] IdleRange(P*) <= 11: SAT
+[MultipleSAT] IdleRange(P*) <= 9: UNSAT
+[MultipleSAT] IdleRange(P*) <= 10: SAT
+    SAT | IdleRange(P*)=10 | time=0.489539s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[222/240] forum-13crafc.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.55s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=10 (cost=10)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=10 | time=0.474366s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forum-13crafc.fixed020-Forb.xlsx
+Instance forumt-14.fixed040-Forb: P×G=pairwise+direct
+[223/240] forumt-14.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.096371s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[224/240] forumt-14.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.096854s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[225/240] forumt-14.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.67s
+    UNSAT | IdleRange(P*)=None | time=0.187152s | config=F-PW-DE-ST-IRP-UW-IC12P
+[226/240] forumt-14.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.062722s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[227/240] forumt-14.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.063476s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[228/240] forumt-14.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.7s
+    UNSAT | IdleRange(P*)=None | time=0.110134s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/forumt-14.fixed040-Forb.xlsx
+Instance tic-12.fixed020-Forb: P×G=pairwise+direct
+[229/240] tic-12.fixed020-Forb | full | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.049802s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[230/240] tic-12.fixed020-Forb | full | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.069573s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[231/240] tic-12.fixed020-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.71s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.08097s | config=F-PW-DE-ST-IRP-UW-IC12P
+[232/240] tic-12.fixed020-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+[IncrementalSAT] initial IdleRange(P*)=6
+[IncrementalSAT] IdleRange(P*) <= 2: UNSAT
+[IncrementalSAT] IdleRange(P*) <= 4: SAT
+[IncrementalSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.042797s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[233/240] tic-12.fixed020-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+[MultipleSAT] initial IdleRange(P*)=6
+[MultipleSAT] IdleRange(P*) <= 2: UNSAT
+[MultipleSAT] IdleRange(P*) <= 4: SAT
+[MultipleSAT] IdleRange(P*) <= 3: UNSAT
+    SAT | IdleRange(P*)=4 | time=0.054733s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[234/240] tic-12.fixed020-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.71s
+[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)=4 (cost=4)
+[MaxSAT/UWrMaxSAT] process exit code=30
+    SAT | IdleRange(P*)=4 | time=0.065918s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/tic-12.fixed020-Forb.xlsx
+Instance ticf-13crafb.fixed040-Forb: P×G=pairwise+direct
+[235/240] ticf-13crafb.fixed040-Forb | full | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.268989s | config=F-PW-DE-ST-IRP-IS-CD-IC12P
+[236/240] ticf-13crafb.fixed040-Forb | full | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.264231s | config=F-PW-DE-ST-IRP-NIS-CD-IC12P
+[237/240] ticf-13crafb.fixed040-Forb | full | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.54s
+    UNSAT | IdleRange(P*)=None | time=0.549865s | config=F-PW-DE-ST-IRP-UW-IC12P
+[238/240] ticf-13crafb.fixed040-Forb | reduced | incremental | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.169924s | config=R-PW-DE-ST-IRP-IS-CD-IC12P
+[239/240] ticf-13crafb.fixed040-Forb | reduced | multiple | P=pairwise | G=direct | imp12+
+    UNSAT | IdleRange(P*)=None | time=0.166032s | config=R-PW-DE-ST-IRP-NIS-CD-IC12P
+[240/240] ticf-13crafb.fixed040-Forb | reduced | maxsat | P=pairwise | G=direct | imp12+
+[MaxSAT/UWrMaxSAT] running /home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat with timeout=7199.62s
+    UNSAT | IdleRange(P*)=None | time=0.345881s | config=R-PW-DE-ST-IRP-UW-IC12P
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed/ticf-13crafb.fixed040-Forb.xlsx
+Detailed CSV: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/data_table07_fixed_detailed.csv
+Aggregate CSV: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/data_table07_fixed_aggregate.csv
+Per-instance Excel directory: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/main/excel_data_table07_fixed
+Completed with errors=0, timeouts=0.

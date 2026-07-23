@@ -1,0 +1,402 @@
+Found 20 canonical input contents
+
+============================================================
+Processing: forumt-14crafe.original.dzn
+Test number: 1
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.1137 seconds
+Total variables: 27859
+Total hard clauses: 93010
+Total soft clauses: 8
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 0.2788 seconds
+
+============================================================
+TOTAL RUNTIME: 0.4621 seconds (0.46s)
+============================================================
+Peak process-tree RSS: 78.105 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forumt-14crafe.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-12crafc.original.dzn
+Test number: 2
+============================================================
+Input parsing completed in 0.0003 seconds
+Constraint building completed in 0.0515 seconds
+Total variables: 14900
+Total hard clauses: 48547
+Total soft clauses: 6
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.0840 seconds
+
+============================================================
+TOTAL RUNTIME: 0.1708 seconds (0.17s)
+============================================================
+Peak process-tree RSS: 67.652 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-12crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forum-13.original.dzn
+Test number: 3
+============================================================
+Input parsing completed in 0.0003 seconds
+Constraint building completed in 0.4502 seconds
+Total variables: 130863
+Total hard clauses: 361885
+Total soft clauses: 19
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 4.6906 seconds
+
+============================================================
+TOTAL RUNTIME: 5.4060 seconds (5.41s)
+============================================================
+Peak process-tree RSS: 224.621 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forum-13.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-13crafc.original.dzn
+Test number: 4
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.0951 seconds
+Total variables: 24375
+Total hard clauses: 78845
+Total soft clauses: 6
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 1
+MaxSAT solving completed in 0.2515 seconds
+
+============================================================
+TOTAL RUNTIME: 0.4043 seconds (0.40s)
+============================================================
+Peak process-tree RSS: 134.820 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-13crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=1 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-14crafc.original.dzn
+Test number: 5
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.1061 seconds
+Total variables: 27972
+Total hard clauses: 93008
+Total soft clauses: 7
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.2654 seconds
+
+============================================================
+TOTAL RUNTIME: 0.4386 seconds (0.44s)
+============================================================
+Peak process-tree RSS: 95.820 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-14crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forum-13crafc.original.dzn
+Test number: 6
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.4518 seconds
+Total variables: 131031
+Total hard clauses: 362263
+Total soft clauses: 19
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 2.5940 seconds
+
+============================================================
+TOTAL RUNTIME: 3.3036 seconds (3.30s)
+============================================================
+Peak process-tree RSS: 225.066 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forum-13crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forumt-14crafc.original.dzn
+Test number: 7
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.1031 seconds
+Total variables: 27972
+Total hard clauses: 93106
+Total soft clauses: 7
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 0.2902 seconds
+
+============================================================
+TOTAL RUNTIME: 0.4620 seconds (0.46s)
+============================================================
+Peak process-tree RSS: 141.801 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forumt-14crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+
+============================================================
+Processing: forum-14.original.dzn
+Test number: 8
+============================================================
+Input parsing completed in 0.0006 seconds
+Constraint building completed in 0.6331 seconds
+Total variables: 162425
+Total hard clauses: 491626
+Total soft clauses: 20
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 4
+MaxSAT solving completed in 3.5898 seconds
+
+============================================================
+TOTAL RUNTIME: 4.5753 seconds (4.58s)
+============================================================
+Peak process-tree RSS: 321.531 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forum-14.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=4 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-14crafa.original.dzn
+Test number: 9
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.1056 seconds
+Total variables: 27752
+Total hard clauses: 92548
+Total soft clauses: 7
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.2736 seconds
+
+============================================================
+TOTAL RUNTIME: 0.4471 seconds (0.45s)
+============================================================
+Peak process-tree RSS: 174.945 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-14crafa.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forum-13crafb.original.dzn
+Test number: 10
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.4880 seconds
+Total variables: 136770
+Total hard clauses: 396518
+Total soft clauses: 20
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 3.1876 seconds
+
+============================================================
+TOTAL RUNTIME: 3.9630 seconds (3.96s)
+============================================================
+Peak process-tree RSS: 258.879 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forum-13crafb.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+
+============================================================
+Processing: ticf-13crafc.original.dzn
+Test number: 11
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.4564 seconds
+Total variables: 131031
+Total hard clauses: 362181
+Total soft clauses: 19
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 4.7081 seconds
+
+============================================================
+TOTAL RUNTIME: 5.4279 seconds (5.43s)
+============================================================
+Peak process-tree RSS: 226.457 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/ticf-13crafc.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: ticf-13crafb.original.dzn
+Test number: 12
+============================================================
+Input parsing completed in 0.0006 seconds
+Constraint building completed in 0.4779 seconds
+Total variables: 136770
+Total hard clauses: 396400
+Total soft clauses: 20
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 2.7393 seconds
+
+============================================================
+TOTAL RUNTIME: 3.5072 seconds (3.51s)
+============================================================
+Peak process-tree RSS: 282.957 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/ticf-13crafb.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+
+============================================================
+Processing: ticf-14crafa.original.dzn
+Test number: 13
+============================================================
+Input parsing completed in 0.0006 seconds
+Constraint building completed in 0.6305 seconds
+Total variables: 162425
+Total hard clauses: 490884
+Total soft clauses: 20
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 9.3935 seconds
+
+============================================================
+TOTAL RUNTIME: 10.3802 seconds (10.38s)
+============================================================
+Peak process-tree RSS: 336.969 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/ticf-14crafa.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: ticf-13crafa.original.dzn
+Test number: 14
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.4409 seconds
+Total variables: 130863
+Total hard clauses: 361803
+Total soft clauses: 19
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 1.8109 seconds
+
+============================================================
+TOTAL RUNTIME: 2.5158 seconds (2.52s)
+============================================================
+Peak process-tree RSS: 263.078 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/ticf-13crafa.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forumt-14.original.dzn
+Test number: 15
+============================================================
+Input parsing completed in 0.0005 seconds
+Constraint building completed in 0.1101 seconds
+Total variables: 27752
+Total hard clauses: 92646
+Total soft clauses: 7
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 0.2219 seconds
+
+============================================================
+TOTAL RUNTIME: 0.3999 seconds (0.40s)
+============================================================
+Peak process-tree RSS: 173.062 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forumt-14.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-14crafd.original.dzn
+Test number: 16
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.1058 seconds
+Total variables: 27779
+Total hard clauses: 92746
+Total soft clauses: 8
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.1448 seconds
+
+============================================================
+TOTAL RUNTIME: 0.3178 seconds (0.32s)
+============================================================
+Peak process-tree RSS: 140.898 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-14crafd.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-13.original.dzn
+Test number: 17
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.0889 seconds
+Total variables: 24215
+Total hard clauses: 78505
+Total soft clauses: 6
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.0920 seconds
+
+============================================================
+TOTAL RUNTIME: 0.2375 seconds (0.24s)
+============================================================
+Peak process-tree RSS: 131.852 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-13.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-13crafb.original.dzn
+Test number: 18
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.0804 seconds
+Total variables: 22825
+Total hard clauses: 77256
+Total soft clauses: 8
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.0727 seconds
+
+============================================================
+TOTAL RUNTIME: 0.2073 seconds (0.21s)
+============================================================
+Peak process-tree RSS: 129.344 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-13crafb.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: tic-12.original.dzn
+Test number: 19
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.0273 seconds
+Total variables: 5772
+Total hard clauses: 21387
+Total soft clauses: 6
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 0
+MaxSAT solving completed in 0.0617 seconds
+
+============================================================
+TOTAL RUNTIME: 0.1050 seconds (0.10s)
+============================================================
+Peak process-tree RSS: 117.027 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/tic-12.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=0 | hard_objective_cap=disabled
+
+============================================================
+Processing: forumt-14crafd.original.dzn
+Test number: 20
+============================================================
+Input parsing completed in 0.0004 seconds
+Constraint building completed in 0.1034 seconds
+Total variables: 27779
+Total hard clauses: 92840
+Total soft clauses: 8
+Hard objective cap: disabled (added clauses: 0)
+UWrMaxSAT optimum IdleRange(P*): 2
+MaxSAT solving completed in 0.2099 seconds
+
+============================================================
+TOTAL RUNTIME: 0.3785 seconds (0.38s)
+============================================================
+Peak process-tree RSS: 136.074 MB
+Excel exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/excel_data_table03_origin/forumt-14crafd.original.xlsx
+Result queued for CSV: OPTIMAL | IdleRange(P*)=2 | hard_objective_cap=disabled
+CSV exported to: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/ic12p-gcp-ic12p-20260723T023309Z/org/data_table03_origin_org_new.csv
