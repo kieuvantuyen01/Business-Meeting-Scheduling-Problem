@@ -201,9 +201,8 @@ The benchmark source is the `b2b.zip` archive linked as **B2B benchmarks** on
 the UdG Logic and Artificial Intelligence page. The extracted `noves/`
 directory contains 140 official paths. SHA-256 grouping yields 126 distinct
 contents: 20 original, 26 forbidden, 40 fixed, and 40 precedence instances.
-Fourteen forbidden contents each have two official names. The repository also
-contains 40 derived fixed-file copies under `data_table06_forb`, giving 180
-repository paths but still only 126 contents.
+Fourteen forbidden contents each have two official names. The four repository
+data directories mirror those 140 paths without cross-family copies.
 
 Regenerate the checked-in manifest from the official extracted directory:
 
@@ -220,11 +219,10 @@ manifest. Manifest and directory inputs are content-deduplicated by default;
 result records the content ID, full SHA-256, official aliases, repository
 aliases, source page, and archive hash.
 
-The official runner selects every family from the canonical manifest. This
-filters the 40 derived Fixed copies under `data_table06_forb` out of the
-Forbidden group. The 40 official Forbidden paths represent 26 unique contents;
-the solver runs once per content, while `source_alias_paths` retains coverage
-of all 40 names from `noves/`.
+The official runner selects every family from the canonical manifest. The 40
+official Forbidden paths represent 26 unique contents; the solver runs once per
+content, while `source_alias_paths` retains coverage of all 40 names from
+`noves/`.
 
 | Family | Official paths | Solved contents | Main configurations/content | Computed Main rows | Computed ORG rows |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -250,6 +248,45 @@ Before archiving the result, the runner calls `src/Validate_Official_Run.py`.
 The archive is created only when 1476 computed Main rows and 126 computed ORG
 rows pass their result and metadata checks and their aliases cover all 140
 official paths.
+
+## Derived precedence-density stress dataset
+
+`data_precedence_stress/` is deliberately separate from the official archive.
+It contains witness-preserving DAG instances at `prec30`, `prec35`, and
+`prec40`. For participant \(p\), the generator uses exactly
+\(\lfloor\gamma |M_p|/100\rfloor\) direct arcs, matching the edge-budget
+convention observed in every official `prec15` and `prec25` file. Fixed seeds,
+canonical feasible witnesses, content hashes, realized densities, and closure
+statistics are recorded in the directory manifests.
+
+Regenerate into a new directory and independently validate the checked-in
+dataset with:
+
+```bash
+python3 src/Generate_Precedence_Stress.py generate \
+  --output-dir /path/to/a/new/output-directory
+
+python3 src/Generate_Precedence_Stress.py validate \
+  --data-dir data_precedence_stress
+```
+
+The generator refuses to overwrite an existing directory. Use the
+runner-compatible derived manifest for the four-cell Reduced/UWrMaxSAT pilot:
+
+```bash
+python3 src/Main.py \
+  --manifest data_precedence_stress/instances_manifest.csv \
+  --family precedence \
+  --solver maxsat \
+  --maxsat-backend uwrmaxsat \
+  --uwrmaxsat-bin /absolute/path/to/uwrmaxsat \
+  --domain-mode reduced \
+  --precedence-encoding both \
+  --precedence-graph both \
+  --encoding-variant imp12+ \
+  --timeout 7200 \
+  --csv output/precedence_stress_pilot.csv
+```
 
 To clean an older run in which the Fixed rows leaked into
 `data_table06_forb`, without rerunning a solver:
