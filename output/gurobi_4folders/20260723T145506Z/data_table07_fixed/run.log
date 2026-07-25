@@ -1,0 +1,2257 @@
+B2B conference benchmark: 40 run(s), objective=IdleRange(P*)
+Selected input paths: 40 (family=all, content_deduplicated=True)
+Exact baselines: Reduced + DistanceClosure; threads=1, seed=0
+Instance ticf-13crafb.fixed020-Forb: 1 run(s)
+[1/40] ticf-13crafb.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1995368962830007e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1995368962830007e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 9119 rows, 5842 columns and 32098 nonzeros (Min)
+Model fingerprint: 0xedce29bf
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5842 integer (5783 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 6318 rows and 2696 columns
+Presolve time: 0.09s
+Presolved: 2801 rows, 3146 columns, 13889 nonzeros
+Variable types: 0 continuous, 3146 integer (3133 binary)
+Found heuristic solution: objective 20.0000000
+Found heuristic solution: objective 19.0000000
+
+Root relaxation: objective 1.700000e+01, 3266 iterations, 0.12 seconds (0.17 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   17.00000    0   41   19.00000   17.00000  10.5%     -    0s
+H    0     0                      18.0000000   17.00000  5.56%     -    0s
+H    0     0                      17.0000000   17.00000  0.00%     -    0s
+     0     0   17.00000    0   41   17.00000   17.00000  0.00%     -    0s
+
+Explored 1 nodes (4403 simplex iterations) in 0.27 seconds (0.39 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 4: 17 18 19 20 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.700000000000e+01, best bound 1.700000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=17 | time=0.490281s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafb.fixed020-Forb.xlsx
+Instance forum-13crafc.fixed040-Forb: 1 run(s)
+[2/40] forum-13crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996550499010009e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996550499010009e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 7745 rows, 4528 columns and 23397 nonzeros (Min)
+Model fingerprint: 0x702643f1
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 4528 integer (4467 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5927 rows and 2890 columns
+Presolve time: 0.05s
+Presolved: 1818 rows, 1638 columns, 7523 nonzeros
+Variable types: 0 continuous, 1638 integer (1615 binary)
+Found heuristic solution: objective 15.0000000
+
+Root relaxation: objective 1.200000e+01, 1402 iterations, 0.02 seconds (0.02 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   12.00000    0   14   15.00000   12.00000  20.0%     -    0s
+     0     0   12.00000    0   17   15.00000   12.00000  20.0%     -    0s
+H    0     0                      13.0000000   12.00000  7.69%     -    0s
+H    0     0                      12.0000000   12.00000  0.00%     -    0s
+     0     0   12.00000    0   17   12.00000   12.00000  0.00%     -    0s
+
+Explored 1 nodes (2063 simplex iterations) in 0.09 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 12 13 15 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.200000000000e+01, best bound 1.200000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=12 | time=0.185031s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13crafc.fixed040-Forb.xlsx
+Instance forumt-14crafd.fixed040-Forb: 1 run(s)
+[3/40] forumt-14crafd.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.692414748
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.692414748
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4574 rows, 2676 columns and 14492 nonzeros (Min)
+Model fingerprint: 0xb02561fd
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2676 integer (2614 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.06048s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafd.fixed040-Forb.xlsx
+Instance tic-14crafd.fixed020-Forb: 1 run(s)
+[4/40] tic-14crafd.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.63384535
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.63384535
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4789 rows, 3212 columns and 17882 nonzeros (Min)
+Model fingerprint: 0x493c7ec0
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3212 integer (3150 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3734 rows and 1632 columns
+Presolve time: 0.03s
+Presolved: 1055 rows, 1580 columns, 6504 nonzeros
+Variable types: 0 continuous, 1580 integer (1565 binary)
+
+Root relaxation: objective 3.000000e+00, 2037 iterations, 0.07 seconds (0.09 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    3.00000    0  218          -    3.00000      -     -    0s
+     0     0    3.00000    0  222          -    3.00000      -     -    0s
+     0     0    3.00000    0  209          -    3.00000      -     -    0s
+     0     0    3.00000    0  183          -    3.00000      -     -    0s
+*    0     0               0       3.0000000    3.00000  0.00%     -    0s
+
+Cutting planes:
+  Gomory: 16
+  Clique: 2
+  Zero half: 21
+
+Explored 1 nodes (4897 simplex iterations) in 0.29 seconds (0.35 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 3 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 3.000000000000e+00, best bound 3.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=3 | time=0.412822s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafd.fixed020-Forb.xlsx
+Instance forum-13crafb.fixed020-Forb: 1 run(s)
+[5/40] forum-13crafb.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1995455735119995e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1995455735119995e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8999 rows, 5763 columns and 31534 nonzeros (Min)
+Model fingerprint: 0xf747881b
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5763 integer (5704 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 6290 rows and 2715 columns
+Presolve time: 0.08s
+Presolved: 2709 rows, 3048 columns, 13459 nonzeros
+Variable types: 0 continuous, 3048 integer (3035 binary)
+Found heuristic solution: objective 20.0000000
+Found heuristic solution: objective 19.0000000
+
+Root relaxation: objective 1.700000e+01, 3136 iterations, 0.11 seconds (0.15 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   17.00000    0   52   19.00000   17.00000  10.5%     -    0s
+H    0     0                      18.0000000   17.00000  5.56%     -    0s
+H    0     0                      17.0000000   17.00000  0.00%     -    0s
+     0     0   17.00000    0   52   17.00000   17.00000  0.00%     -    0s
+
+Explored 1 nodes (4253 simplex iterations) in 0.24 seconds (0.34 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 4: 17 18 19 20 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.700000000000e+01, best bound 1.700000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=17 | time=0.448897s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13crafb.fixed020-Forb.xlsx
+Instance forum-13.fixed040-Forb: 1 run(s)
+[6/40] forum-13.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.654213337
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.654213337
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 7745 rows, 4528 columns and 23397 nonzeros (Min)
+Model fingerprint: 0x0772574a
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 4528 integer (4467 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5927 rows and 2890 columns
+Presolve time: 0.05s
+Presolved: 1818 rows, 1638 columns, 7523 nonzeros
+Variable types: 0 continuous, 1638 integer (1615 binary)
+Found heuristic solution: objective 15.0000000
+Found heuristic solution: objective 14.0000000
+
+Root relaxation: objective 1.200000e+01, 1328 iterations, 0.02 seconds (0.02 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+*    0     0               0      12.0000000   12.00000  0.00%     -    0s
+
+Explored 1 nodes (1939 simplex iterations) in 0.08 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 12 14 15 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.200000000000e+01, best bound 1.200000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=12 | time=0.183563s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13.fixed040-Forb.xlsx
+Instance tic-13.fixed040-Forb: 1 run(s)
+[7/40] tic-13.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996853027239995e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996853027239995e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3522 rows, 1966 columns and 10624 nonzeros (Min)
+Model fingerprint: 0x16ab76d4
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1966 integer (1918 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3016 rows and 1378 columns
+Presolve time: 0.01s
+Presolved: 506 rows, 588 columns, 2399 nonzeros
+Variable types: 0 continuous, 588 integer (585 binary)
+
+Root relaxation: objective 4.000000e+00, 720 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+     0     0    4.00000    0  269    4.00000    4.00000  0.00%     -    0s
+
+Explored 1 nodes (720 simplex iterations) in 0.03 seconds (0.03 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.092387s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13.fixed040-Forb.xlsx
+Instance tic-13crafc.fixed040-Forb: 1 run(s)
+[8/40] tic-13crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.687097954
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.687097954
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3522 rows, 1966 columns and 10624 nonzeros (Min)
+Model fingerprint: 0x6cb66d25
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1966 integer (1918 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3014 rows and 1378 columns
+Presolve time: 0.01s
+Presolved: 508 rows, 588 columns, 2478 nonzeros
+Variable types: 0 continuous, 588 integer (585 binary)
+
+Root relaxation: objective 4.000000e+00, 838 iterations, 0.01 seconds (0.02 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    4.00000    0   26          -    4.00000      -     -    0s
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+
+Explored 1 nodes (1149 simplex iterations) in 0.04 seconds (0.04 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.100345s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13crafc.fixed040-Forb.xlsx
+Instance tic-14crafa.fixed040-Forb: 1 run(s)
+[9/40] tic-14crafa.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996911089469995e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996911089469995e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4655 rows, 2712 columns and 14775 nonzeros (Min)
+Model fingerprint: 0xb53d45ad
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2712 integer (2650 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 3e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.061703s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafa.fixed040-Forb.xlsx
+Instance tic-12crafc.fixed020-Forb: 1 run(s)
+[10/40] tic-12crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.70055508
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.70055508
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 2501 rows, 1565 columns and 8535 nonzeros (Min)
+Model fingerprint: 0xf9810c02
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1565 integer (1523 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 1946 rows and 884 columns
+Presolve time: 0.01s
+Presolved: 555 rows, 681 columns, 2845 nonzeros
+Variable types: 0 continuous, 681 integer (674 binary)
+
+Root relaxation: objective 4.000000e+00, 843 iterations, 0.01 seconds (0.02 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    4.00000    0   51          -    4.00000      -     -    0s
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+     0     0    4.00000    0   51    4.00000    4.00000  0.00%     -    0s
+
+Explored 1 nodes (1480 simplex iterations) in 0.04 seconds (0.05 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.095375s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-12crafc.fixed020-Forb.xlsx
+Instance forum-13crafb.fixed040-Forb: 1 run(s)
+[11/40] forum-13crafb.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.666304008
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.666304008
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8986 rows, 5482 columns and 29874 nonzeros (Min)
+Model fingerprint: 0xdd7229e5
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5482 integer (5423 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.088782s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13crafb.fixed040-Forb.xlsx
+Instance forumt-14crafc.fixed040-Forb: 1 run(s)
+[12/40] forumt-14crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996921005630011e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996921005630011e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4662 rows, 2811 columns and 15385 nonzeros (Min)
+Model fingerprint: 0x9e581c21
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2811 integer (2749 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.060794s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafc.fixed040-Forb.xlsx
+Instance forumt-14crafe.fixed040-Forb: 1 run(s)
+[13/40] forumt-14crafe.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.692858115
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.692858115
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4574 rows, 2676 columns and 14492 nonzeros (Min)
+Model fingerprint: 0xcd12e7e3
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2676 integer (2614 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.060041s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafe.fixed040-Forb.xlsx
+Instance tic-12.fixed040-Forb: 1 run(s)
+[14/40] tic-12.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1997202538930005e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1997202538930005e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 2523 rows, 1520 columns and 8283 nonzeros (Min)
+Model fingerprint: 0x106da359
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1520 integer (1478 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.031587s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-12.fixed040-Forb.xlsx
+Instance tic-14crafa.fixed020-Forb: 1 run(s)
+[15/40] tic-14crafa.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996383049069991e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996383049069991e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4804 rows, 3220 columns and 17959 nonzeros (Min)
+Model fingerprint: 0x31219bc1
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3220 integer (3158 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 3e+01]
+
+Presolve removed 3712 rows and 1602 columns
+Presolve time: 0.03s
+Presolved: 1092 rows, 1618 columns, 6606 nonzeros
+Variable types: 0 continuous, 1618 integer (1600 binary)
+
+Root relaxation: objective 2.000000e+00, 2251 iterations, 0.07 seconds (0.11 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    2.00000    0  303          -    2.00000      -     -    0s
+H    0     0                       5.0000000    2.00000  60.0%     -    0s
+     0     0    2.00000    0  290    5.00000    2.00000  60.0%     -    0s
+H    0     0                       4.0000000    2.00000  50.0%     -    0s
+H    0     0                       2.0000000    2.00000  0.00%     -    0s
+     0     0    2.00000    0  290    2.00000    2.00000  0.00%     -    0s
+
+Cutting planes:
+  Implied bound: 1
+  Clique: 2
+  MIR: 1
+  Zero half: 2
+  PSD: 1
+
+Explored 1 nodes (4054 simplex iterations) in 0.25 seconds (0.29 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 2 4 5 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 2.000000000000e+00, best bound 2.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=2 | time=0.362575s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafa.fixed020-Forb.xlsx
+Instance tic-13crafc.fixed020-Forb: 1 run(s)
+[16/40] tic-13crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996634561400006e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996634561400006e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3669 rows, 2466 columns and 13759 nonzeros (Min)
+Model fingerprint: 0x8d8e1f78
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2466 integer (2418 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 2886 rows and 1220 columns
+Presolve time: 0.02s
+Presolved: 783 rows, 1246 columns, 4977 nonzeros
+Variable types: 0 continuous, 1246 integer (1237 binary)
+
+Root relaxation: objective 3.000000e+00, 1883 iterations, 0.05 seconds (0.07 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    3.00000    0  103          -    3.00000      -     -    0s
+H    0     0                       4.0000000    3.00000  25.0%     -    0s
+H    0     0                       3.0000000    3.00000  0.00%     -    0s
+     0     0    3.00000    0  103    3.00000    3.00000  0.00%     -    0s
+
+Explored 1 nodes (3089 simplex iterations) in 0.12 seconds (0.16 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 3 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 3.000000000000e+00, best bound 3.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=3 | time=0.208686s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13crafc.fixed020-Forb.xlsx
+Instance forumt-14crafc.fixed020-Forb: 1 run(s)
+[17/40] forumt-14crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.643879092
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.643879092
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4715 rows, 3135 columns and 17377 nonzeros (Min)
+Model fingerprint: 0xe840fcab
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3135 integer (3073 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3650 rows and 1599 columns
+Presolve time: 0.03s
+Presolved: 1065 rows, 1536 columns, 6271 nonzeros
+Variable types: 0 continuous, 1536 integer (1516 binary)
+
+Root relaxation: objective 2.000000e+00, 2133 iterations, 0.07 seconds (0.10 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    2.00000    0   90          -    2.00000      -     -    0s
+H    0     0                       4.0000000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  403    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  385    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  302    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  143    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  200    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  134    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  265    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  180    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  176    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  219    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  190    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  190    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  190    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  190    4.00000    2.00000  50.0%     -    0s
+     0     2    2.00000    0  190    4.00000    2.00000  50.0%     -    0s
+H    3     3                       2.0000000    2.00000  0.00%   251    1s
+
+Cutting planes:
+  Cover: 1
+  Implied bound: 3
+  Clique: 10
+  MIR: 1
+  Flow cover: 1
+  Zero half: 4
+  RLT: 5
+  Relax-and-lift: 7
+
+Explored 4 nodes (19544 simplex iterations) in 1.04 seconds (1.36 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 2 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 2.000000000000e+00, best bound 2.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=2 | time=1.147641s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafc.fixed020-Forb.xlsx
+Instance tic-13crafb.fixed020-Forb: 1 run(s)
+[18/40] tic-13crafb.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996611049799994e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996611049799994e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3590 rows, 2433 columns and 13562 nonzeros (Min)
+Model fingerprint: 0x45b7e9fa
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2433 integer (2386 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 2826 rows and 1226 columns
+Presolve time: 0.02s
+Presolved: 764 rows, 1207 columns, 4820 nonzeros
+Variable types: 0 continuous, 1207 integer (1195 binary)
+
+Root relaxation: objective 1.000000e+00, 1425 iterations, 0.03 seconds (0.05 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    1.00000    0   25          -    1.00000      -     -    0s
+H    0     0                       2.0000000    1.00000  50.0%     -    0s
+H    0     0                       1.0000000    1.00000  0.00%     -    0s
+     0     0    1.00000    0   25    1.00000    1.00000  0.00%     -    0s
+
+Explored 1 nodes (2182 simplex iterations) in 0.08 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 1 2 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+00, best bound 1.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=1 | time=0.174539s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13crafb.fixed020-Forb.xlsx
+Instance forumt-14.fixed020-Forb: 1 run(s)
+[19/40] forumt-14.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.644223303
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.644223303
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4715 rows, 3135 columns and 17377 nonzeros (Min)
+Model fingerprint: 0x7b9a7ec9
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3135 integer (3073 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 3e+01]
+
+Presolve removed 3650 rows and 1599 columns
+Presolve time: 0.03s
+Presolved: 1065 rows, 1536 columns, 6271 nonzeros
+Variable types: 0 continuous, 1536 integer (1516 binary)
+
+Root relaxation: objective 2.000000e+00, 2072 iterations, 0.07 seconds (0.10 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    2.00000    0  178          -    2.00000      -     -    0s
+     0     0    2.00000    0  223          -    2.00000      -     -    0s
+H    0     0                       4.0000000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  203    4.00000    2.00000  50.0%     -    0s
+     0     0    2.00000    0  132    4.00000    2.00000  50.0%     -    0s
+*    0     0               0       2.0000000    2.00000  0.00%     -    0s
+
+Cutting planes:
+  Gomory: 18
+  Cover: 1
+  Clique: 7
+  MIR: 1
+  Zero half: 3
+  RLT: 2
+  Relax-and-lift: 1
+
+Explored 1 nodes (5065 simplex iterations) in 0.30 seconds (0.37 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 2 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 2.000000000000e+00, best bound 2.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=2 | time=0.405843s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14.fixed020-Forb.xlsx
+Instance ticf-13crafc.fixed020-Forb: 1 run(s)
+[20/40] ticf-13crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.601185307
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.601185307
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8689 rows, 5324 columns and 28813 nonzeros (Min)
+Model fingerprint: 0x4c3af7da
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5324 integer (5263 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5438 rows and 2367 columns
+Presolve time: 0.07s
+Presolved: 3251 rows, 2957 columns, 13656 nonzeros
+Variable types: 0 continuous, 2957 integer (2920 binary)
+Found heuristic solution: objective 14.0000000
+
+Root relaxation: objective 1.000000e+01, 3655 iterations, 0.16 seconds (0.23 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   10.00000    0   16   14.00000   10.00000  28.6%     -    0s
+H    0     0                      12.0000000   10.00000  16.7%     -    0s
+H    0     0                      10.0000000   10.00000  0.00%     -    0s
+     0     0   10.00000    0   16   10.00000   10.00000  0.00%     -    0s
+
+Explored 1 nodes (4946 simplex iterations) in 0.30 seconds (0.43 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 10 12 14 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+01, best bound 1.000000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=10 | time=0.448189s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafc.fixed020-Forb.xlsx
+Instance tic-14crafc.fixed040-Forb: 1 run(s)
+[21/40] tic-14crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.689606039
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.689606039
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4655 rows, 2712 columns and 14775 nonzeros (Min)
+Model fingerprint: 0x55997306
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2712 integer (2650 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.063191s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafc.fixed040-Forb.xlsx
+Instance forumt-14crafe.fixed020-Forb: 1 run(s)
+[22/40] forumt-14crafe.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996387201630005e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996387201630005e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4681 rows, 3145 columns and 17394 nonzeros (Min)
+Model fingerprint: 0xc7c3f766
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3145 integer (3083 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3700 rows and 1644 columns
+Presolve time: 0.03s
+Presolved: 981 rows, 1501 columns, 6126 nonzeros
+Variable types: 0 continuous, 1501 integer (1490 binary)
+
+Root relaxation: objective 4.000000e+00, 2226 iterations, 0.08 seconds (0.11 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    4.00000    0  309          -    4.00000      -     -    0s
+H    0     0                       6.0000000    4.00000  33.3%     -    0s
+     0     0    4.00000    0  329    6.00000    4.00000  33.3%     -    0s
+     0     0    4.00000    0  308    6.00000    4.00000  33.3%     -    0s
+     0     0    4.00000    0  345    6.00000    4.00000  33.3%     -    0s
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+     0     0    4.00000    0   29    4.00000    4.00000  0.00%     -    0s
+
+Cutting planes:
+  Gomory: 12
+  Implied bound: 1
+  Clique: 4
+  Zero half: 15
+  PSD: 1
+
+Explored 1 nodes (7142 simplex iterations) in 0.44 seconds (0.56 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 4 6 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.552159s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafe.fixed020-Forb.xlsx
+Instance ticf-13crafa.fixed020-Forb: 1 run(s)
+[23/40] ticf-13crafa.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1995996556830005e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1995996556830005e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8689 rows, 5324 columns and 28813 nonzeros (Min)
+Model fingerprint: 0x47062a24
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5324 integer (5263 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5438 rows and 2367 columns
+Presolve time: 0.07s
+Presolved: 3251 rows, 2957 columns, 13656 nonzeros
+Variable types: 0 continuous, 2957 integer (2920 binary)
+Found heuristic solution: objective 14.0000000
+Found heuristic solution: objective 13.0000000
+
+Root relaxation: objective 1.000000e+01, 3270 iterations, 0.11 seconds (0.15 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                      10.0000000   10.00000  0.00%     -    0s
+     0     0   10.00000    0 1331   10.00000   10.00000  0.00%     -    0s
+
+Explored 1 nodes (3270 simplex iterations) in 0.19 seconds (0.27 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 10 13 14 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+01, best bound 1.000000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=10 | time=0.341299s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafa.fixed020-Forb.xlsx
+Instance forum-13.fixed020-Forb: 1 run(s)
+[24/40] forum-13.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.601498176
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.601498176
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8561 rows, 5254 columns and 28296 nonzeros (Min)
+Model fingerprint: 0xeb42ddb3
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5254 integer (5193 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5407 rows and 2383 columns
+Presolve time: 0.07s
+Presolved: 3154 rows, 2871 columns, 13256 nonzeros
+Variable types: 0 continuous, 2871 integer (2834 binary)
+Found heuristic solution: objective 14.0000000
+Found heuristic solution: objective 13.0000000
+
+Root relaxation: objective 1.000000e+01, 3492 iterations, 0.15 seconds (0.22 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   10.00000    0   30   13.00000   10.00000  23.1%     -    0s
+H    0     0                      12.0000000   10.00000  16.7%     -    0s
+H    0     0                      11.0000000   10.00000  9.09%     -    0s
+H    0     0                      10.0000000   10.00000  0.00%     -    0s
+     0     0   10.00000    0   30   10.00000   10.00000  0.00%     -    0s
+
+Explored 1 nodes (4766 simplex iterations) in 0.28 seconds (0.40 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 5: 10 11 12 ... 14
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+01, best bound 1.000000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=10 | time=0.430863s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13.fixed020-Forb.xlsx
+Instance tic-13crafb.fixed040-Forb: 1 run(s)
+[25/40] tic-13crafb.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996817271069995e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996817271069995e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3443 rows, 1892 columns and 10188 nonzeros (Min)
+Model fingerprint: 0x6125bb71
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1892 integer (1845 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3029 rows and 1418 columns
+Presolve time: 0.01s
+Presolved: 414 rows, 474 columns, 1875 nonzeros
+Variable types: 0 continuous, 474 integer (471 binary)
+
+Root relaxation: objective 4.000000e+00, 491 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+     0     0    4.00000    0  121    4.00000    4.00000  0.00%     -    0s
+
+Explored 1 nodes (491 simplex iterations) in 0.02 seconds (0.02 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.090162s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13crafb.fixed040-Forb.xlsx
+Instance ticf-13crafa.fixed040-Forb: 1 run(s)
+[26/40] ticf-13crafa.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.6555854
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.6555854
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 7871 rows, 4589 columns and 23854 nonzeros (Min)
+Model fingerprint: 0xc045cb7e
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 4589 integer (4528 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5961 rows and 2885 columns
+Presolve time: 0.05s
+Presolved: 1910 rows, 1704 columns, 7872 nonzeros
+Variable types: 0 continuous, 1704 integer (1679 binary)
+Found heuristic solution: objective 15.0000000
+Found heuristic solution: objective 14.0000000
+
+Root relaxation: objective 1.200000e+01, 1388 iterations, 0.02 seconds (0.03 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   12.00000    0   26   14.00000   12.00000  14.3%     -    0s
+H    0     0                      13.0000000   12.00000  7.69%     -    0s
+H    0     0                      12.0000000   12.00000  0.00%     -    0s
+     0     0   12.00000    0   26   12.00000   12.00000  0.00%     -    0s
+
+Explored 1 nodes (2053 simplex iterations) in 0.09 seconds (0.12 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 4: 12 13 14 15 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.200000000000e+01, best bound 1.200000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=12 | time=0.186749s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafa.fixed040-Forb.xlsx
+Instance tic-13.fixed020-Forb: 1 run(s)
+[27/40] tic-13.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.664159364
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.664159364
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 3669 rows, 2466 columns and 13759 nonzeros (Min)
+Model fingerprint: 0x8f530107
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2466 integer (2418 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 2886 rows and 1220 columns
+Presolve time: 0.02s
+Presolved: 783 rows, 1246 columns, 4977 nonzeros
+Variable types: 0 continuous, 1246 integer (1237 binary)
+
+Root relaxation: objective 3.000000e+00, 1541 iterations, 0.04 seconds (0.05 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    3.00000    0   10          -    3.00000      -     -    0s
+H    0     0                       3.0000000    3.00000  0.00%     -    0s
+     0     0    3.00000    0   10    3.00000    3.00000  0.00%     -    0s
+
+Explored 1 nodes (2141 simplex iterations) in 0.09 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 3 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 3.000000000000e+00, best bound 3.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=3 | time=0.174003s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-13.fixed020-Forb.xlsx
+Instance forum-14.fixed040-Forb: 1 run(s)
+[28/40] forum-14.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1995047290200009e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1995047290200009e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 10977 rows, 6752 columns and 36406 nonzeros (Min)
+Model fingerprint: 0x85f2968c
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 6752 integer (6677 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 8974 rows and 4163 columns
+Presolve time: 0.08s
+Presolved: 2003 rows, 2589 columns, 11155 nonzeros
+Variable types: 0 continuous, 2589 integer (2576 binary)
+Found heuristic solution: objective 16.0000000
+
+Explored 0 nodes (0 simplex iterations) in 0.09 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 16 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.600000000000e+01, best bound 1.600000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=16 | time=0.338188s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-14.fixed040-Forb.xlsx
+Instance forumt-14crafd.fixed020-Forb: 1 run(s)
+[29/40] forumt-14crafd.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996410626229990e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996410626229990e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4681 rows, 3145 columns and 17394 nonzeros (Min)
+Model fingerprint: 0x0d1e69e3
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3145 integer (3083 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3700 rows and 1644 columns
+Presolve time: 0.03s
+Presolved: 981 rows, 1501 columns, 6126 nonzeros
+Variable types: 0 continuous, 1501 integer (1490 binary)
+Found heuristic solution: objective 7.0000000
+Found heuristic solution: objective 5.0000000
+
+Root relaxation: objective 4.000000e+00, 1879 iterations, 0.06 seconds (0.08 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    4.00000    0  288    5.00000    4.00000  20.0%     -    0s
+     0     0    4.00000    0  304    5.00000    4.00000  20.0%     -    0s
+     0     0    4.00000    0  333    5.00000    4.00000  20.0%     -    0s
+*    0     0               0       4.0000000    4.00000  0.00%     -    0s
+
+Cutting planes:
+  Gomory: 12
+  Implied bound: 5
+  Clique: 12
+  Zero half: 11
+  RLT: 3
+
+Explored 1 nodes (5234 simplex iterations) in 0.35 seconds (0.41 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 4 5 7 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.458462s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14crafd.fixed020-Forb.xlsx
+Instance tic-14crafd.fixed040-Forb: 1 run(s)
+[30/40] tic-14crafd.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.687825484
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.687825484
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4541 rows, 2532 columns and 13579 nonzeros (Min)
+Model fingerprint: 0xd8e8fb77
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2532 integer (2470 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 8e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.064668s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafd.fixed040-Forb.xlsx
+Instance tic-12crafc.fixed040-Forb: 1 run(s)
+[31/40] tic-12crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.721421185
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.721421185
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 2523 rows, 1520 columns and 8283 nonzeros (Min)
+Model fingerprint: 0x8a1e8441
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1520 integer (1478 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.030313s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-12crafc.fixed040-Forb.xlsx
+Instance tic-14crafc.fixed020-Forb: 1 run(s)
+[32/40] tic-14crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996373038959991e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996373038959991e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4804 rows, 3220 columns and 17959 nonzeros (Min)
+Model fingerprint: 0xac47975b
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 3220 integer (3158 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 3712 rows and 1602 columns
+Presolve time: 0.03s
+Presolved: 1092 rows, 1618 columns, 6606 nonzeros
+Variable types: 0 continuous, 1618 integer (1600 binary)
+
+Root relaxation: objective 2.000000e+00, 2339 iterations, 0.09 seconds (0.12 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0    2.00000    0   55          -    2.00000      -     -    0s
+H    0     0                       4.0000000    2.00000  50.0%     -    0s
+H    0     0                       3.0000000    2.00000  33.3%     -    0s
+     0     0    2.00000    0  325    3.00000    2.00000  33.3%     -    0s
+H    0     0                       2.0000000    2.00000  0.00%     -    0s
+     0     0    2.00000    0  325    2.00000    2.00000  0.00%     -    0s
+
+Cutting planes:
+  Gomory: 1
+  Implied bound: 1
+  RLT: 3
+
+Explored 1 nodes (4398 simplex iterations) in 0.21 seconds (0.28 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 3: 2 3 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 2.000000000000e+00, best bound 2.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=2 | time=0.32084s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-14crafc.fixed020-Forb.xlsx
+Instance ticf-13crafc.fixed040-Forb: 1 run(s)
+[33/40] ticf-13crafc.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.651145265
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.651145265
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 7871 rows, 4589 columns and 23854 nonzeros (Min)
+Model fingerprint: 0xd42089cd
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 4589 integer (4528 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5961 rows and 2885 columns
+Presolve time: 0.05s
+Presolved: 1910 rows, 1704 columns, 7872 nonzeros
+Variable types: 0 continuous, 1704 integer (1679 binary)
+Found heuristic solution: objective 15.0000000
+Found heuristic solution: objective 14.0000000
+
+Root relaxation: objective 1.200000e+01, 1356 iterations, 0.02 seconds (0.02 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   12.00000    0   14   14.00000   12.00000  14.3%     -    0s
+H    0     0                      13.0000000   12.00000  7.69%     -    0s
+H    0     0                      12.0000000   12.00000  0.00%     -    0s
+     0     0   12.00000    0   14   12.00000   12.00000  0.00%     -    0s
+
+Explored 1 nodes (1998 simplex iterations) in 0.09 seconds (0.11 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 4: 12 13 14 15 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.200000000000e+01, best bound 1.200000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=12 | time=0.189834s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafc.fixed040-Forb.xlsx
+Instance forum-14.fixed020-Forb: 1 run(s)
+[34/40] forum-14.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.277766763
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.277766763
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 11802 rows, 8220 columns and 45897 nonzeros (Min)
+Model fingerprint: 0x61f9144b
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 8220 integer (8145 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 7764 rows and 3186 columns
+Presolve time: 0.12s
+Presolved: 4038 rows, 5034 columns, 22032 nonzeros
+Variable types: 0 continuous, 5034 integer (4997 binary)
+Found heuristic solution: objective 16.0000000
+Found heuristic solution: objective 15.0000000
+
+Root relaxation: objective 1.000000e+01, 7113 iterations, 0.60 seconds (0.91 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   10.00000    0   99   15.00000   10.00000  33.3%     -    0s
+H    0     0                      13.0000000   10.00000  23.1%     -    0s
+H    0     0                      11.0000000   10.00000  9.09%     -    0s
+H    0     0                      10.0000000   10.00000  0.00%     -    0s
+     0     0   10.00000    0   99   10.00000   10.00000  0.00%     -    0s
+
+Explored 1 nodes (9285 simplex iterations) in 0.90 seconds (1.33 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 5: 10 11 13 ... 16
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+01, best bound 1.000000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=10 | time=1.383073s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-14.fixed020-Forb.xlsx
+Instance ticf-14crafa.fixed040-Forb: 1 run(s)
+[35/40] ticf-14crafa.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.489389245
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.489389245
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 11538 rows, 7059 columns and 38690 nonzeros (Min)
+Model fingerprint: 0x0bb9bd99
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 7059 integer (6984 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 9463 rows and 4297 columns
+Presolve time: 0.08s
+Presolved: 2075 rows, 2762 columns, 11988 nonzeros
+Variable types: 0 continuous, 2762 integer (2752 binary)
+
+Root relaxation: objective 1.600000e+01, 1771 iterations, 0.03 seconds (0.05 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                      16.0000000   16.00000  0.00%     -    0s
+     0     0   16.00000    0  553   16.00000   16.00000  0.00%     -    0s
+
+Explored 1 nodes (1771 simplex iterations) in 0.13 seconds (0.17 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 16 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.600000000000e+01, best bound 1.600000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=16 | time=0.394362s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-14crafa.fixed040-Forb.xlsx
+Instance ticf-14crafa.fixed020-Forb: 1 run(s)
+[36/40] ticf-14crafa.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1992418798190010e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1992418798190010e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 12318 rows, 8623 columns and 48719 nonzeros (Min)
+Model fingerprint: 0x8a2c16b3
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 8623 integer (8548 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 8386 rows and 3372 columns
+Presolve time: 0.12s
+Presolved: 3932 rows, 5251 columns, 22721 nonzeros
+Variable types: 0 continuous, 5251 integer (5229 binary)
+Found heuristic solution: objective 20.0000000
+
+Root relaxation: objective 1.500000e+01, 6252 iterations, 0.42 seconds (0.60 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                      15.0000000   15.00000  0.00%     -    0s
+     0     0   15.00000    0 1733   15.00000   15.00000  0.00%     -    0s
+
+Explored 1 nodes (6252 simplex iterations) in 0.56 seconds (0.81 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 2: 15 20 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.500000000000e+01, best bound 1.500000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=15 | time=1.076945s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-14crafa.fixed020-Forb.xlsx
+Instance forum-13crafc.fixed020-Forb: 1 run(s)
+[37/40] forum-13crafc.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.601809942
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.601809942
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 8561 rows, 5254 columns and 28296 nonzeros (Min)
+Model fingerprint: 0xa3bd7072
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5254 integer (5193 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve removed 5407 rows and 2383 columns
+Presolve time: 0.07s
+Presolved: 3154 rows, 2871 columns, 13256 nonzeros
+Variable types: 0 continuous, 2871 integer (2834 binary)
+Found heuristic solution: objective 15.0000000
+
+Root relaxation: objective 1.000000e+01, 3401 iterations, 0.12 seconds (0.17 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   10.00000    0   84   15.00000   10.00000  33.3%     -    0s
+H    0     0                      14.0000000   10.00000  28.6%     -    0s
+H    0     0                      13.0000000   10.00000  23.1%     -    0s
+H    0     0                      12.0000000   10.00000  16.7%     -    0s
+H    0     0                      10.0000000   10.00000  0.00%     -    0s
+     0     0   10.00000    0   84   10.00000   10.00000  0.00%     -    0s
+
+Explored 1 nodes (4717 simplex iterations) in 0.27 seconds (0.37 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 5: 10 12 13 ... 15
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 1.000000000000e+01, best bound 1.000000000000e+01, gap 0.0000%
+    SAT | IdleRange(P*)=10 | time=0.418661s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forum-13crafc.fixed020-Forb.xlsx
+Instance forumt-14.fixed040-Forb: 1 run(s)
+[38/40] forumt-14.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996929217829993e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996929217829993e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 4662 rows, 2811 columns and 15385 nonzeros (Min)
+Model fingerprint: 0xe2ea3eba
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 2811 integer (2749 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 7e+00]
+  RHS range        [1e+00, 3e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.059882s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/forumt-14.fixed040-Forb.xlsx
+Instance tic-12.fixed020-Forb: 1 run(s)
+[39/40] tic-12.fixed020-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7199.697682978
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7199.697682978
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 2501 rows, 1565 columns and 8535 nonzeros (Min)
+Model fingerprint: 0xc3af2434
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 1565 integer (1523 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 6e+00]
+  RHS range        [1e+00, 2e+01]
+
+Presolve removed 1947 rows and 884 columns
+Presolve time: 0.01s
+Presolved: 554 rows, 681 columns, 2676 nonzeros
+Variable types: 0 continuous, 681 integer (674 binary)
+
+Root relaxation: objective 4.000000e+00, 776 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+H    0     0                       4.0000000    4.00000  0.00%     -    0s
+     0     0    4.00000    0  343    4.00000    4.00000  0.00%     -    0s
+
+Explored 1 nodes (776 simplex iterations) in 0.03 seconds (0.03 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 1: 4 
+
+Optimal solution found (tolerance 0.00e+00)
+Best objective 4.000000000000e+00, best bound 4.000000000000e+00, gap 0.0000%
+    SAT | IdleRange(P*)=4 | time=0.080933s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/tic-12.fixed020-Forb.xlsx
+Instance ticf-13crafb.fixed040-Forb: 1 run(s)
+[40/40] ticf-13crafb.fixed040-Forb | reduced | gurobi_mip | P=native_linear | G=distance_closure | n/a
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2663665
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Set parameter OutputFlag to value 1
+Set parameter Threads to value 1
+Set parameter Seed to value 0
+Set parameter MIPGap to value 0
+Set parameter MIPGapAbs to value 0
+Set parameter TimeLimit to value 7.1996684116159995e+03
+Gurobi Optimizer version 13.0.2 build v13.0.2rc1 (linux64 - "Ubuntu 22.04.5 LTS")
+
+CPU model: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 4 physical cores, 8 logical processors, using up to 1 threads
+
+Non-default parameters:
+TimeLimit  7.1996684116159995e+03
+MIPGap  0
+MIPGapAbs  0
+Threads  1
+
+Academic license 2663665 - for non-commercial use only - registered to tu___@vnu.edu.vn
+Optimize a model with 9198 rows, 5673 columns and 31172 nonzeros (Min)
+Model fingerprint: 0xfa2c2af3
+Model has 1 linear objective coefficients
+Variable types: 0 continuous, 5673 integer (5614 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+00]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 2e+01]
+  RHS range        [1e+00, 4e+01]
+
+Presolve time: 0.00s
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 8 available processors)
+
+Solution count 0
+
+Model is infeasible
+Best objective -, best bound -, gap -
+    UNSAT | IdleRange(P*)=None | time=0.086777s | config=R-DC-IRP-GRB-MIP
+    Excel: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel/ticf-13crafb.fixed040-Forb.xlsx
+Detailed CSV: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/detailed.csv
+Aggregate CSV: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/aggregate.csv
+Per-instance Excel directory: /home/dclng566/projects/Business-Meeting-Scheduling-Problem/output/gurobi_4folders/20260723T145506Z/data_table07_fixed/excel
+Completed with errors=0, timeouts=0.
