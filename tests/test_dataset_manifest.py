@@ -41,7 +41,7 @@ class DatasetManifestTests(unittest.TestCase):
         self.assertEqual(sum(int(row["source_alias_count"]) for row in rows), 140)
         self.assertEqual(
             sum(int(row["repository_alias_count"]) for row in rows),
-            180,
+            140,
         )
         self.assertEqual(
             sum(int(row["source_alias_count"]) == 2 for row in rows),

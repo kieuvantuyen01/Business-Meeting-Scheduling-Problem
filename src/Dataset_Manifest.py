@@ -4,6 +4,7 @@ import argparse
 import csv
 import hashlib
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -64,10 +65,9 @@ def classify_instance_name(name: str) -> tuple[str, str]:
         return "fixed", "fixed020"
     if ".fixed040-forb.dzn" in lower:
         return "fixed", "fixed040"
-    if ".prec15.dzn" in lower:
-        return "precedence", "prec15"
-    if ".prec25.dzn" in lower:
-        return "precedence", "prec25"
+    precedence_match = re.search(r"\.prec(\d+)\.dzn$", lower)
+    if precedence_match:
+        return "precedence", f"prec{precedence_match.group(1)}"
     return "unknown", "unknown"
 
 
@@ -183,7 +183,11 @@ def write_manifest(path: str | Path, rows: Iterable[dict[str, Any]]) -> Path:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=MANIFEST_FIELDS)
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=MANIFEST_FIELDS,
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(rows)
     return destination
