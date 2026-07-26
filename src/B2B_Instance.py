@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -422,6 +422,104 @@ def build_precedence_graph(precedences: list[set[int]]) -> PrecedenceGraphInfo:
     )
 
 
+def _topological_order(graph: PrecedenceGraphInfo) -> list[int]:
+    """Return a topological order of an acyclic precedence graph."""
+
+    indegree = [len(preds) for preds in graph.direct_predecessors]
+    ready = [node for node, degree in enumerate(indegree) if degree == 0]
+    order: list[int] = []
+    cursor = 0
+    while cursor < len(ready):
+        node = ready[cursor]
+        cursor += 1
+        order.append(node)
+        for successor in graph.successors[node]:
+            indegree[successor] -= 1
+            if indegree[successor] == 0:
+                ready.append(successor)
+    return order
+
+
+def resource_strengthened_precedence_distances(
+    inst: B2BInstance,
+    graph: PrecedenceGraphInfo,
+) -> list[dict[int, int]]:
+    """Return exact resource-strengthened lower bounds for every edge in E*.
+
+    For every reachable pair ``pred ->* post``, all meetings that are strict
+    descendants of ``pred`` and strict ancestors of ``post`` must be scheduled
+    in the open interval between the two endpoints. The interval therefore
+    needs enough slots for both the table capacity and every participant's
+    capacity-one meetings. These valid lower bounds are then closed under
+    max-plus path composition on the precedence DAG.
+
+    The returned constraints are implied by the original B2B semantics; using
+    them for domain filtering cannot remove a feasible schedule.
+    """
+
+    chain = [dict(distances) for distances in graph.longest_distance]
+    if graph.cycle_nodes or graph.transitive_edge_count == 0:
+        return chain
+
+    n = inst.n_meetings
+    descendants = [set() for _ in range(n)]
+    for post, predecessors in enumerate(graph.transitive_predecessors):
+        for predecessor in predecessors:
+            descendants[predecessor].add(post)
+
+    strengthened = [dict(distances) for distances in chain]
+    for post, predecessors in enumerate(graph.transitive_predecessors):
+        ancestors_of_post = graph.transitive_predecessors[post]
+        for predecessor in predecessors:
+            interior = descendants[predecessor].intersection(ancestors_of_post)
+
+            table_layers = 0
+            if interior and inst.n_tables > 0:
+                table_layers = (
+                    len(interior) + inst.n_tables - 1
+                ) // inst.n_tables
+
+            participant_loads: dict[int, int] = {}
+            for meeting in interior:
+                p1, p2, _ = inst.requested[meeting]
+                participant_loads[p1] = participant_loads.get(p1, 0) + 1
+                participant_loads[p2] = participant_loads.get(p2, 0) + 1
+            participant_layers = max(participant_loads.values(), default=0)
+
+            resource_lag = 1 + max(table_layers, participant_layers)
+            strengthened[post][predecessor] = max(
+                strengthened[post].get(predecessor, 0),
+                resource_lag,
+            )
+
+    # Every strengthened reachable pair is a valid weighted shortcut. Compose
+    # all shortcuts through longest paths on the DAG (max-plus closure).
+    weighted_successors: list[dict[int, int]] = [dict() for _ in range(n)]
+    for post, distances in enumerate(strengthened):
+        for predecessor, distance in distances.items():
+            weighted_successors[predecessor][post] = max(
+                weighted_successors[predecessor].get(post, 0),
+                distance,
+            )
+
+    order = _topological_order(graph)
+    closed: list[dict[int, int]] = [dict() for _ in range(n)]
+    for source in order:
+        distance_from_source: dict[int, int] = {source: 0}
+        for node in order:
+            base = distance_from_source.get(node)
+            if base is None:
+                continue
+            for successor, edge_weight in weighted_successors[node].items():
+                candidate = base + edge_weight
+                if candidate > distance_from_source.get(successor, -1):
+                    distance_from_source[successor] = candidate
+        for post, distance in distance_from_source.items():
+            if post != source:
+                closed[post][source] = distance
+    return closed
+
+
 def _session_slots(inst: B2BInstance, m: int) -> set[int]:
     session = inst.requested[m][2]
     if session == 1:
@@ -481,12 +579,12 @@ def _has_full_slot_matching(
 
 def _propagate_distance_precedences(
     domains: list[set[int]],
-    graph: PrecedenceGraphInfo,
+    distances_by_post: list[dict[int, int]],
 ) -> bool:
     """Apply bounds consistency to every distance-labelled edge in E*."""
 
     changed = False
-    for post, distances in enumerate(graph.longest_distance):
+    for post, distances in enumerate(distances_by_post):
         for pred, distance in distances.items():
             pred_domain = domains[pred]
             post_domain = domains[post]
@@ -576,8 +674,9 @@ def reduce_domains_with_precedence(
 ) -> tuple[list[list[int]], int, int]:
     """Run exact preprocessing to a fixpoint.
 
-    The fixpoint combines unary restrictions, distance-aware E* propagation,
-    participant all-different matching GAC, and saturated table-slot propagation.
+    The fixpoint combines unary restrictions, resource-strengthened E*
+    propagation, participant all-different matching GAC, and saturated
+    table-slot propagation.
     """
 
     domains = [original_eligible_slots(inst, m) for m in range(inst.n_meetings)]
@@ -587,9 +686,11 @@ def reduce_domains_with_precedence(
         domains[graph.cycle_nodes[0]].clear()
         return [sorted(domain) for domain in domains], initial_count, sum(map(len, domains))
 
+    effective_distances = resource_strengthened_precedence_distances(inst, graph)
+
     changed = True
     while changed:
-        changed = _propagate_distance_precedences(domains, graph)
+        changed = _propagate_distance_precedences(domains, effective_distances)
         matching_changed, feasible = _propagate_participant_matchings(inst, domains)
         changed = changed or matching_changed
         if not feasible:
@@ -809,7 +910,8 @@ class B2BSATModel:
     ``precedence_encoding`` (P) and ``precedence_graph`` (G) are independent:
     either encoding can consume either the direct distance-one relations or the
     distance-labelled transitive closure. Domain preprocessing intentionally
-    uses the same distance closure for every P/G configuration.
+    uses the same exact resource-strengthened E* bounds for every P/G
+    configuration, while the encoded precedence graph remains unchanged.
 
     ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
     and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
@@ -903,6 +1005,9 @@ class B2BSATModel:
         self._precedence_pairwise_clauses = 0
         self._precedence_sparse_link_clauses = 0
         self._precedence_unique_suffix_cuts = 0
+        self._participant_occupancy_strategy: dict[int, str] = {}
+        self._objective_prefix_support: dict[tuple[int, int], int] = {}
+        self._objective_suffix_support: dict[tuple[int, int], int] = {}
 
         self._schedule_vars: dict[tuple[int, int], int] = {}
         for meeting, slots in enumerate(self._eligible_slots):
@@ -1096,7 +1201,8 @@ class B2BSATModel:
         cnf = CNF()
         self.enabled_constraints = [
             "objective-only optimization: no hard upper bound on objective gap",
-            "P/G-independent distance-closure domain propagation and cycle detection",
+            "P/G-independent resource-strengthened E* domain propagation and "
+            "cycle detection",
             "precedence configuration: "
             f"P={self.precedence_encoding}, G={self.precedence_graph}",
         ]
@@ -1186,7 +1292,9 @@ class B2BSATModel:
             precedence_unique_suffix_cuts=(
                 self._precedence_unique_suffix_cuts
             ),
-            objective_encoding="linear first/last span with exact unary thresholds",
+            objective_encoding=(
+                "sparse-support first/last span with exact unary thresholds"
+            ),
         )
         return self._artifacts
 
@@ -1222,9 +1330,54 @@ class B2BSATModel:
                     if slot not in allowed:
                         cnf.append([-self.x(meeting, slot)])
 
+    def _occupancy_strategy(self, participant: int) -> str:
+        """Choose a logically equivalent compact occupancy formulation.
+
+        With implied constraint (43), exactly ``|M_p|`` used-slot literals are
+        true. Together with exact meeting assignment, either participant
+        collision clauses or reverse ``used -> OR(schedule)`` channeling is
+        redundant. We retain the cheaper family for each participant.
+        """
+
+        cached = self._participant_occupancy_strategy.get(participant)
+        if cached is not None:
+            return cached
+        if not self.use_implied_1:
+            strategy = "full"
+        else:
+            meetings = self.inst.meetings_by_business[participant]
+            collision_clauses = 0
+            reverse_clauses = 0
+            for slot in range(self.inst.n_total_slots):
+                count = sum(
+                    self.x_or_none(meeting, slot) is not None
+                    for meeting in meetings
+                )
+                collision_clauses += count * (count - 1) // 2
+                if count > 0:
+                    reverse_clauses += 1
+
+            # Keep binary collisions on ties because they generally propagate
+            # better; otherwise emit the family with fewer clauses.
+            strategy = (
+                "omit_collision"
+                if reverse_clauses < collision_clauses
+                else "omit_reverse"
+            )
+        self._participant_occupancy_strategy[participant] = strategy
+        return strategy
+
     def _add_participant_collision(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(19) participant atMost-one per slot")
-        for meetings in self.inst.meetings_by_business:
+        if self.use_implied_1:
+            self.enabled_constraints.append(
+                "compact participant occupancy: adaptively omit redundant "
+                "collision or reverse-channel clauses"
+            )
+        else:
+            self.enabled_constraints.append("(19) participant atMost-one per slot")
+        for participant, meetings in enumerate(self.inst.meetings_by_business):
+            if self._occupancy_strategy(participant) == "omit_collision":
+                continue
             for slot in range(self.inst.n_total_slots):
                 lits = [
                     lit
@@ -1409,8 +1562,11 @@ class B2BSATModel:
         cnf.append([left, -right])
 
     def _channel_used_slots(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("exact schedule <-> usedSlot channeling")
+        self.enabled_constraints.append(
+            "exact or compact schedule/usedSlot occupancy channeling"
+        )
         for participant, meetings in enumerate(self.inst.meetings_by_business):
+            strategy = self._occupancy_strategy(participant)
             for slot in range(self.inst.n_total_slots):
                 used = self.used_or_none(participant, slot)
                 if used is None:
@@ -1422,7 +1578,8 @@ class B2BSATModel:
                 ]
                 for lit in scheduled:
                     cnf.append([-lit, used])
-                cnf.append([-used] + scheduled)
+                if strategy != "omit_reverse":
+                    cnf.append([-used] + scheduled)
 
             if self.use_implied_1:
                 self._add_implied_constraint_1(cnf, participant)
@@ -1430,40 +1587,69 @@ class B2BSATModel:
         if self.use_implied_2:
             self._add_implied_constraint_2(cnf)
 
-    def _build_prefix_suffix(self, cnf: CNF, participant: int) -> None:
-        total_slots = self.inst.n_total_slots
-        if total_slots == 0:
+    def _build_prefix_suffix(
+        self,
+        cnf: CNF,
+        participant: int,
+        possible_slots: list[int],
+    ) -> None:
+        """Build cumulative occupancy only at supported participant slots.
+
+        Prefix/suffix truth values are constant across gaps containing no
+        ``usedSlot`` variable. Materializing the chains only where occupancy can
+        change removes those duplicate variables and equivalence clauses.
+        """
+
+        if not possible_slots:
             return
 
-        for slot in range(total_slots):
-            prefix = self.prefix_used(participant, slot)
+        previous: int | None = None
+        for slot in possible_slots:
             used = self.used_or_none(participant, slot)
-            if slot == 0:
-                if used is None:
-                    cnf.append([-prefix])
-                else:
-                    self._add_equiv(cnf, prefix, used)
+            assert used is not None
+            if previous is None:
+                prefix = used
             else:
-                previous = self.prefix_used(participant, slot - 1)
-                if used is None:
-                    self._add_equiv(cnf, prefix, previous)
-                else:
-                    self._add_equiv_or(cnf, prefix, previous, used)
+                prefix = self.vpool.id(("prefixUsedSupport", participant, slot))
+                self._add_equiv_or(cnf, prefix, previous, used)
+            self._objective_prefix_support[participant, slot] = prefix
+            previous = prefix
 
-        for slot in range(total_slots - 1, -1, -1):
-            suffix = self.suffix_used(participant, slot)
+        following: int | None = None
+        for slot in reversed(possible_slots):
             used = self.used_or_none(participant, slot)
-            if slot == total_slots - 1:
-                if used is None:
-                    cnf.append([-suffix])
-                else:
-                    self._add_equiv(cnf, suffix, used)
+            assert used is not None
+            if following is None:
+                suffix = used
             else:
-                following = self.suffix_used(participant, slot + 1)
-                if used is None:
-                    self._add_equiv(cnf, suffix, following)
-                else:
-                    self._add_equiv_or(cnf, suffix, used, following)
+                suffix = self.vpool.id(("suffixUsedSupport", participant, slot))
+                self._add_equiv_or(cnf, suffix, used, following)
+            self._objective_suffix_support[participant, slot] = suffix
+            following = suffix
+
+    def _prefix_strictly_before(
+        self,
+        participant: int,
+        possible_slots: list[int],
+        slot: int,
+    ) -> int | None:
+        index = bisect_left(possible_slots, slot) - 1
+        if index < 0:
+            return None
+        support_slot = possible_slots[index]
+        return self._objective_prefix_support[participant, support_slot]
+
+    def _suffix_at_or_after(
+        self,
+        participant: int,
+        possible_slots: list[int],
+        slot: int,
+    ) -> int | None:
+        index = bisect_left(possible_slots, slot)
+        if index >= len(possible_slots):
+            return None
+        support_slot = possible_slots[index]
+        return self._objective_suffix_support[participant, support_slot]
 
     def _participant_span_upper_bound(self, participant: int) -> int:
         meetings = self.inst.n_meetings_business[participant]
@@ -1480,7 +1666,8 @@ class B2BSATModel:
         """Encode ``B(p)>=k`` directly for objective participants in P*."""
 
         self.enabled_constraints.append(
-            "linear P* first/last span encoding: B(p)=last-first+1-|Mp|"
+            "sparse-support P* first/last span encoding: "
+            "B(p)=last-first+1-|Mp|"
         )
         self._channel_used_slots(cnf)
         thresholds_by_participant: list[list[int]] = []
@@ -1499,21 +1686,25 @@ class B2BSATModel:
                 thresholds_by_participant.append([])
                 continue
 
-            self._build_prefix_suffix(cnf, participant)
+            self._build_prefix_suffix(cnf, participant, possible_slots)
             first_lits: dict[int, int] = {}
             for slot in possible_slots:
                 used = self.used_or_none(participant, slot)
                 assert used is not None
-                first = self.first_used(participant, slot)
-                first_lits[slot] = first
-                if slot == 0:
-                    self._add_equiv(cnf, first, used)
+                previous = self._prefix_strictly_before(
+                    participant,
+                    possible_slots,
+                    slot,
+                )
+                if previous is None:
+                    first = used
                 else:
-                    previous = self.prefix_used(participant, slot - 1)
+                    first = self.first_used(participant, slot)
                     # first <-> used AND NOT previous-prefix.
                     cnf.append([-first, used])
                     cnf.append([-first, -previous])
                     cnf.append([-used, previous, first])
+                first_lits[slot] = first
 
             upper = self._participant_span_upper_bound(participant)
             thresholds: list[int] = []
@@ -1522,10 +1713,14 @@ class B2BSATModel:
                 thresholds.append(threshold)
                 for first_slot, first in first_lits.items():
                     target = first_slot + meetings + amount - 1
-                    if target >= self.inst.n_total_slots:
+                    suffix = self._suffix_at_or_after(
+                        participant,
+                        possible_slots,
+                        target,
+                    )
+                    if suffix is None:
                         cnf.append([-first, -threshold])
                         continue
-                    suffix = self.suffix_used(participant, target)
                     # first -> (threshold <-> suffix[target]).
                     cnf.append([-first, -threshold, suffix])
                     cnf.append([-first, threshold, -suffix])
