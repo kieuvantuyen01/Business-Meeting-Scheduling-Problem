@@ -288,6 +288,39 @@ python3 src/Main.py \
   --csv output/precedence_stress_pilot.csv
 ```
 
+### High-density extension
+
+`data_precedence_stress_high/` adds 20 witness-preserving contents at each of
+`prec50` and `prec60` without replacing the original stress set.  It uses the
+same source contents, canonical witnesses, global seed, and participant edge
+ladders as `data_precedence_stress/`.  The test suite verifies the cross-dataset
+nesting `prec40` $\subset$ `prec50` $\subset$ `prec60` for every source
+content.
+
+Regenerate, validate, and run the four-cell Reduced/UWrMaxSAT block with:
+
+```bash
+python3 src/Generate_Precedence_Stress.py generate \
+  --output-dir data_precedence_stress_high \
+  --gammas 50 60
+
+python3 src/Generate_Precedence_Stress.py validate \
+  --data-dir data_precedence_stress_high
+
+python3 src/Main.py \
+  --manifest data_precedence_stress_high/instances_manifest.csv \
+  --family precedence \
+  --solver maxsat \
+  --maxsat-backend uwrmaxsat \
+  --uwrmaxsat-bin /absolute/path/to/uwrmaxsat \
+  --domain-mode reduced \
+  --precedence-encoding both \
+  --precedence-graph both \
+  --encoding-variant imp12+ \
+  --timeout 7200 \
+  --csv output/precedence_stress_high_pilot.csv
+```
+
 To clean an older run in which the Fixed rows leaked into
 `data_table06_forb`, without rerunning a solver:
 
