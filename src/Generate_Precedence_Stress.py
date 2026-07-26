@@ -393,8 +393,10 @@ def _dataset_readme(
     gammas: tuple[int, ...],
     global_seed: int,
     source_count: int,
+    dataset_directory_name: str,
 ) -> str:
     gamma_text = ", ".join(f"`prec{gamma}`" for gamma in gammas)
+    gamma_arguments = " ".join(str(gamma) for gamma in gammas)
     return f"""# Derived precedence-density stress dataset
 
 This directory contains {source_count * len(gammas)} derived instances:
@@ -433,10 +435,11 @@ From the repository root:
 
 ```bash
 python3 src/Generate_Precedence_Stress.py generate \\
-  --output-dir /path/to/a/new/output-directory
+  --output-dir {dataset_directory_name} \\
+  --gammas {gamma_arguments}
 
 python3 src/Generate_Precedence_Stress.py validate \\
-  --data-dir data_precedence_stress
+  --data-dir {dataset_directory_name}
 ```
 
 The generator refuses to overwrite an existing output directory.
@@ -448,7 +451,7 @@ The controlled four-cell precedence pilot contains
 
 ```bash
 python3 src/Main.py \\
-  --manifest data_precedence_stress/instances_manifest.csv \\
+  --manifest {dataset_directory_name}/instances_manifest.csv \\
   --family precedence \\
   --solver maxsat \\
   --maxsat-backend uwrmaxsat \\
@@ -458,7 +461,7 @@ python3 src/Main.py \\
   --precedence-graph both \\
   --encoding-variant imp12+ \\
   --timeout 7200 \\
-  --csv output/precedence_stress_pilot.csv
+  --csv output/{dataset_directory_name}_pilot.csv
 ```
 """
 
@@ -467,6 +470,7 @@ def _generate_into_directory(
     source_directory: Path,
     destination: Path,
     *,
+    dataset_directory_name: str,
     gammas: tuple[int, ...],
     global_seed: int,
     sat_backend: str,
@@ -618,7 +622,12 @@ def _generate_into_directory(
         encoding="utf-8",
     )
     (destination / "README.md").write_text(
-        _dataset_readme(gammas, global_seed, len(source_paths)),
+        _dataset_readme(
+            gammas,
+            global_seed,
+            len(source_paths),
+            dataset_directory_name,
+        ),
         encoding="utf-8",
     )
 
@@ -858,6 +867,7 @@ def generate_dataset(
         _generate_into_directory(
             source_root,
             staging,
+            dataset_directory_name=output_root.name,
             gammas=gamma_levels,
             global_seed=global_seed,
             sat_backend=sat_backend,
