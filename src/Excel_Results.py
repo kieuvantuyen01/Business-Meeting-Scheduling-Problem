@@ -36,6 +36,7 @@ RESULT_COLUMNS = (
     ResultColumn("instance_family"),
     ResultColumn("configuration_label"),
     ResultColumn("factor_m"),
+    ResultColumn("factor_f"),
     ResultColumn("factor_p"),
     ResultColumn("factor_g"),
     ResultColumn("factor_b"),
@@ -69,6 +70,7 @@ RESULT_COLUMNS = (
     ResultColumn("configuration_id"),
     ResultColumn("configuration_key"),
     ResultColumn("domain_mode"),
+    ResultColumn("domain_filter_graph"),
     ResultColumn("precedence_encoding"),
     ResultColumn("precedence_graph"),
     ResultColumn("optimization_engine"),
@@ -212,8 +214,10 @@ README_ROWS = (
     ),
     (
         "Configuration key",
-        "configuration_id/configuration_key contains all M/P/G/B/O/S/I factors "
-        "and the exact backend; configuration_label is a compact display alias.",
+        "configuration_id/configuration_key contains the M/F/P/G/B/O/S/I "
+        "factors and the exact backend; legacy Filter-E* identifiers remain "
+        "stable, while new Filter-E identifiers include f-direct explicitly. "
+        "configuration_label is a compact display alias.",
     ),
     (
         "Dataset identity",

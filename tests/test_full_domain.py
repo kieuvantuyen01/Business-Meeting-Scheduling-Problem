@@ -11,7 +11,7 @@ from pysat.solvers import Glucose3
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from B2B_Instance import B2BInstance, B2BSATModel
+from B2B_Instance import B2BInstance, B2BSATModel, read_instance
 from IncrementalSAT_Solver import B2BIncrementalSATSolver
 from MaxSAT_Solver import B2BMaxSATSolver
 from Multiple_SAT import B2BMultipleSATSolver
@@ -314,6 +314,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     chain,
                     precedence_encoding=precedence_encoding,
                     precedence_graph=precedence_graph,
+                    domain_filter_graph="direct",
                     encoding_variant="imp12+",
                     domain_mode=domain_mode,
                     backend="rc2",
@@ -564,6 +565,66 @@ class FullDomainEncodingTests(unittest.TestCase):
         self.assertGreater(sparse_direct.precedence_sparse_link_clauses, 0)
         self.assertGreater(sparse_closure.precedence_unique_suffix_cuts, 0)
 
+    def test_domain_filter_graph_is_independent_from_cnf_graph(self) -> None:
+        inst = read_instance(
+            PROJECT_ROOT / "data_table08_prec" / "forum-13.prec25.dzn"
+        )
+        filter_e = B2BSATModel(
+            inst,
+            precedence_encoding="sparse_suffix",
+            precedence_graph="distance_closure",
+            domain_filter_graph="direct",
+            encoding_variant="imp12+",
+            domain_mode="reduced",
+        ).build_base_cnf()
+        filter_e_star = B2BSATModel(
+            inst,
+            precedence_encoding="sparse_suffix",
+            precedence_graph="distance_closure",
+            domain_filter_graph="distance_closure",
+            encoding_variant="imp12+",
+            domain_mode="reduced",
+        ).build_base_cnf()
+
+        self.assertEqual(filter_e.domain_filter_graph, "direct")
+        self.assertEqual(
+            filter_e_star.domain_filter_graph,
+            "distance_closure",
+        )
+        self.assertEqual(
+            filter_e.precedence_graph,
+            filter_e_star.precedence_graph,
+        )
+        self.assertGreater(
+            filter_e.reduced_schedule_candidates,
+            filter_e_star.reduced_schedule_candidates,
+        )
+        self.assertGreater(
+            filter_e.n_primary_variables,
+            filter_e_star.n_primary_variables,
+        )
+
+    def test_default_filter_e_star_remains_backward_compatible(self) -> None:
+        inst = _precedence_chain_instance()
+        default = B2BSATModel(
+            inst,
+            precedence_encoding="pairwise",
+            precedence_graph="direct",
+        ).build_base_cnf()
+        explicit = B2BSATModel(
+            inst,
+            precedence_encoding="pairwise",
+            precedence_graph="direct",
+            domain_filter_graph="distance_closure",
+        ).build_base_cnf()
+
+        self.assertEqual(default.domain_filter_graph, "distance_closure")
+        self.assertEqual(default.cnf.clauses, explicit.cnf.clauses)
+        self.assertEqual(
+            default.reduced_schedule_candidates,
+            explicit.reduced_schedule_candidates,
+        )
+
     def test_all_optimizers_accept_the_two_new_factorial_cells(self) -> None:
         inst = _restricted_instance()
         new_cells = (
@@ -576,6 +637,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     inst,
                     precedence_encoding=precedence_encoding,
                     precedence_graph=precedence_graph,
+                    domain_filter_graph="direct",
                     encoding_variant="imp12+",
                     domain_mode="reduced",
                     backend="rc2",
@@ -584,6 +646,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     inst,
                     precedence_encoding=precedence_encoding,
                     precedence_graph=precedence_graph,
+                    domain_filter_graph="direct",
                     encoding_variant="imp12+",
                     solver_name="glucose",
                     domain_mode="reduced",
@@ -592,6 +655,7 @@ class FullDomainEncodingTests(unittest.TestCase):
                     inst,
                     precedence_encoding=precedence_encoding,
                     precedence_graph=precedence_graph,
+                    domain_filter_graph="direct",
                     encoding_variant="imp12+",
                     solver_name="glucose",
                     domain_mode="reduced",
@@ -611,12 +675,20 @@ class FullDomainEncodingTests(unittest.TestCase):
                         result["precedence_encoding"], precedence_encoding
                     )
                     self.assertEqual(result["precedence_graph"], precedence_graph)
+                    self.assertEqual(result["domain_filter_graph"], "direct")
                 objectives.append(result["objective_value"])
             self.assertEqual(objectives, [objectives[0]] * len(objectives))
 
     def test_unknown_domain_mode_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             B2BSATModel(_restricted_instance(), domain_mode="expanded")
+
+    def test_unknown_domain_filter_graph_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            B2BSATModel(
+                _restricted_instance(),
+                domain_filter_graph="source_closure",
+            )
 
 
 if __name__ == "__main__":

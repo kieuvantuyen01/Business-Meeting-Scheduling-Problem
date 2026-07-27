@@ -59,6 +59,7 @@ SOLVERS = [*SAT_SOLVERS, *EXACT_SOLVERS]
 PRECEDENCE_MODES = ["traditional", "staircase"]
 PRECEDENCE_ENCODINGS = ["pairwise", "sparse_suffix"]
 PRECEDENCE_GRAPHS = ["direct", "distance_closure"]
+DOMAIN_FILTER_GRAPHS = ["direct", "distance_closure"]
 DOMAIN_MODES = ["full", "reduced"]
 MAXSAT_BACKENDS = ["uwrmaxsat", "rc2"]
 SAT_BACKENDS = ["cadical", "glucose"]
@@ -187,6 +188,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="G factor; defaults to both",
     )
     parser.add_argument(
+        "--domain-filter-graph",
+        choices=[*DOMAIN_FILTER_GRAPHS, "both"],
+        default="distance_closure",
+        help=(
+            "F factor for Reduced-domain preprocessing: direct=Filter-E, "
+            "distance_closure=Filter-E* (default), both=both; Full is emitted "
+            "once because filtering does not change its variables"
+        ),
+    )
+    parser.add_argument(
         "--encoding-variant",
         choices=[*VARIANTS, "all"],
         default="imp12+",
@@ -268,6 +279,7 @@ class RunConfiguration:
     solver_name: str
     precedence_encoding: str
     precedence_graph: str
+    domain_filter_graph: str
     encoding_variant: str
     domain_mode: str
 
@@ -325,6 +337,7 @@ def configuration_metadata(
     domain_mode: str,
     maxsat_backend: str,
     sat_backend: str,
+    domain_filter_graph: str = "distance_closure",
 ) -> dict[str, str]:
     """Return stable human and machine identifiers for one factor tuple."""
 
@@ -378,9 +391,11 @@ def configuration_metadata(
             "configuration_key": identifier,
             "optimization_engine": optimization_engine,
             "idle_encoding": idle_encoding,
+            "domain_filter_graph": "distance_closure",
             "objective_code": "IRP",
             "implied_constraints_code": "NA",
             "factor_m": "Reduced",
+            "factor_f": "Filter-E*",
             "factor_p": (
                 "NativeLinear"
                 if native_encoding == "native_linear"
@@ -414,9 +429,11 @@ def configuration_metadata(
     encoding_code = PRECEDENCE_ENCODING_CODES[precedence_encoding]
     graph_code = PRECEDENCE_GRAPH_CODES[precedence_graph]
     implied_code = VARIANT_CODES[encoding_variant]
-    label = "-".join(
+    label_parts = [domain_code]
+    if domain_filter_graph == "direct":
+        label_parts.append("FE")
+    label_parts.extend(
         (
-            domain_code,
             encoding_code,
             graph_code,
             "ST",
@@ -425,10 +442,15 @@ def configuration_metadata(
             implied_code,
         )
     )
-    identifier = "__".join(
+    label = "-".join(label_parts)
+    identifier_parts = [
+        "cfg2" if domain_filter_graph == "distance_closure" else "cfg4",
+        f"m-{domain_mode}",
+    ]
+    if domain_filter_graph == "direct":
+        identifier_parts.append("f-direct")
+    identifier_parts.extend(
         (
-            "cfg2",
-            f"m-{domain_mode}",
             f"p-{precedence_encoding}",
             f"g-{precedence_graph}",
             "b-span_threshold",
@@ -438,15 +460,22 @@ def configuration_metadata(
             f"backend-{backend_code.lower()}",
         )
     )
+    identifier = "__".join(identifier_parts)
     return {
         "configuration_label": label,
         "configuration_id": identifier,
         "configuration_key": identifier,
         "optimization_engine": optimization_engine,
         "idle_encoding": "span_threshold",
+        "domain_filter_graph": domain_filter_graph,
         "objective_code": "IRP",
         "implied_constraints_code": implied_code,
         "factor_m": "Full" if domain_mode == "full" else "Reduced",
+        "factor_f": (
+            "Filter-E"
+            if domain_filter_graph == "direct"
+            else "Filter-E*"
+        ),
         "factor_p": (
             "Pairwise"
             if precedence_encoding == "pairwise"
@@ -591,6 +620,22 @@ def instance_precedence_configurations(
     return precedence_configurations(args)
 
 
+def instance_domain_filter_configurations(
+    args: argparse.Namespace,
+    instance: InstanceSpec,
+    domain_mode: str,
+) -> list[str]:
+    """Return meaningful F cells without duplicating unchanged Full models."""
+
+    if domain_mode == "full" or not instance.has_precedence:
+        return ["distance_closure"]
+    return selected(
+        getattr(args, "domain_filter_graph", "distance_closure"),
+        DOMAIN_FILTER_GRAPHS,
+        "both",
+    )
+
+
 def benchmark_configurations(
     args: argparse.Namespace,
     instance: InstanceSpec,
@@ -611,10 +656,16 @@ def benchmark_configurations(
                 solver_name=solver,
                 precedence_encoding=precedence_encoding,
                 precedence_graph=precedence_graph,
+                domain_filter_graph=domain_filter_graph,
                 encoding_variant=variant,
                 domain_mode=domain_mode,
             )
             for domain_mode in domain_modes
+            for domain_filter_graph in instance_domain_filter_configurations(
+                args,
+                instance,
+                domain_mode,
+            )
             for precedence_encoding, precedence_graph in precedence_cells
             for solver in selected_sat_solvers
             for variant in variants
@@ -630,6 +681,7 @@ def benchmark_configurations(
                     "native_cp" if solver == "cplex_cp" else "native_linear"
                 ),
                 precedence_graph="distance_closure",
+                domain_filter_graph="distance_closure",
                 encoding_variant="n/a",
                 domain_mode="reduced",
             )
@@ -782,6 +834,11 @@ def _formula_metadata(
                 artifacts.precedence_configuration
             ),
             "domain_mode": artifacts.domain_mode,
+            "domain_filter_graph": getattr(
+                artifacts,
+                "domain_filter_graph",
+                "distance_closure",
+            ),
             "full_schedule_candidates": (
                 artifacts.full_schedule_candidates
             ),
@@ -887,6 +944,7 @@ def _formula_metadata(
         "precedence_graph": artifacts.precedence_graph,
         "precedence_configuration": artifacts.precedence_configuration,
         "domain_mode": artifacts.domain_mode,
+        "domain_filter_graph": artifacts.domain_filter_graph,
         "full_schedule_candidates": artifacts.full_schedule_candidates,
         "unary_eligible_schedule_candidates": (
             artifacts.unary_eligible_schedule_candidates
@@ -957,6 +1015,7 @@ def _result_payload(
     solver_name: str,
     precedence_encoding: str,
     precedence_graph: str,
+    domain_filter_graph: str,
     encoding_variant: str,
     domain_mode: str,
     runtime_seconds: float,
@@ -987,6 +1046,7 @@ def _result_payload(
         "precedence_configuration": (
             f"{precedence_encoding}+{precedence_graph}"
         ),
+        "domain_filter_graph": domain_filter_graph,
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
@@ -1062,6 +1122,7 @@ def _worker(
     instance_path: str,
     precedence_encoding: str,
     precedence_graph: str,
+    domain_filter_graph: str,
     encoding_variant: str,
     domain_mode: str,
     maxsat_backend: str,
@@ -1093,6 +1154,7 @@ def _worker(
                 "precedence_graph": precedence_graph,
                 "encoding_variant": encoding_variant,
                 "domain_mode": domain_mode,
+                "domain_filter_graph": domain_filter_graph,
             }
         if solver_name == "maxsat":
             solver_kwargs.update(
@@ -1150,6 +1212,7 @@ def _worker(
                 solver_name=solver_name,
                 precedence_encoding=precedence_encoding,
                 precedence_graph=precedence_graph,
+                domain_filter_graph=domain_filter_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
                 runtime_seconds=finished - started,
@@ -1172,6 +1235,7 @@ def _worker(
                 "precedence_configuration": (
                     f"{precedence_encoding}+{precedence_graph}"
                 ),
+                "domain_filter_graph": domain_filter_graph,
                 "encoding_variant": encoding_variant,
                 "domain_mode": domain_mode,
                 "runtime_seconds": round(time.perf_counter() - started, 6),
@@ -1282,6 +1346,7 @@ def _terminal_payload(
     solver_name: str,
     precedence_encoding: str,
     precedence_graph: str,
+    domain_filter_graph: str,
     encoding_variant: str,
     domain_mode: str,
     maxsat_backend: str,
@@ -1300,6 +1365,7 @@ def _terminal_payload(
         "precedence_configuration": (
             f"{precedence_encoding}+{precedence_graph}"
         ),
+        "domain_filter_graph": domain_filter_graph,
         "encoding_variant": encoding_variant,
         "domain_mode": domain_mode,
         "runtime_seconds": round(runtime_seconds, 6),
@@ -1330,6 +1396,7 @@ def run_with_timeout(
     instance_path: Path,
     precedence_encoding: str,
     precedence_graph: str,
+    domain_filter_graph: str,
     encoding_variant: str,
     domain_mode: str,
     maxsat_backend: str,
@@ -1350,6 +1417,7 @@ def run_with_timeout(
             str(instance_path),
             precedence_encoding,
             precedence_graph,
+            domain_filter_graph,
             encoding_variant,
             domain_mode,
             maxsat_backend,
@@ -1393,6 +1461,7 @@ def run_with_timeout(
             solver_name=solver_name,
             precedence_encoding=precedence_encoding,
             precedence_graph=precedence_graph,
+            domain_filter_graph=domain_filter_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
             maxsat_backend=maxsat_backend,
@@ -1412,6 +1481,7 @@ def run_with_timeout(
                 solver_name=solver_name,
                 precedence_encoding=precedence_encoding,
                 precedence_graph=precedence_graph,
+                domain_filter_graph=domain_filter_graph,
                 encoding_variant=encoding_variant,
                 domain_mode=domain_mode,
                 maxsat_backend=maxsat_backend,
@@ -1444,6 +1514,7 @@ def run_with_timeout(
             solver_name=solver_name,
             precedence_encoding=precedence_encoding,
             precedence_graph=precedence_graph,
+            domain_filter_graph=domain_filter_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
             maxsat_backend=maxsat_backend,
@@ -1549,12 +1620,13 @@ def format_table_cell(result: dict[str, Any]) -> str:
 
 
 def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
-    grouped: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
     for result in results:
         key = (
             result["instance"],
             result["precedence_encoding"],
             result["precedence_graph"],
+            result.get("domain_filter_graph", "distance_closure"),
             result["solver"],
             result["domain_mode"],
         )
@@ -1565,6 +1637,10 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
                 "precedence_encoding": result["precedence_encoding"],
                 "precedence_graph": result["precedence_graph"],
                 "precedence_configuration": result["precedence_configuration"],
+                "domain_filter_graph": result.get(
+                    "domain_filter_graph",
+                    "distance_closure",
+                ),
                 "solver": result["solver"],
                 "objective": "IdleRange(P*)",
                 "domain_mode": result["domain_mode"],
@@ -1580,6 +1656,7 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
         key=lambda row: (
             row["instance"],
             row["domain_mode"],
+            row["domain_filter_graph"],
             row["precedence_encoding"],
             row["precedence_graph"],
             row["solver"],
@@ -1591,6 +1668,7 @@ def write_aggregate_csv(path: Path, results: list[dict[str, Any]]) -> None:
         "precedence_encoding",
         "precedence_graph",
         "precedence_configuration",
+        "domain_filter_graph",
         "solver",
         "objective",
         "domain_mode",
@@ -1731,6 +1809,16 @@ def main(argv: list[str] | None = None) -> int:
     if any(solver in SAT_SOLVERS for solver in solvers):
         domain_modes = selected(args.domain_mode, DOMAIN_MODES, "both")
         print(f"SAT/MaxSAT domain mode(s): {', '.join(domain_modes)}")
+        print(
+            "Reduced-domain filter graph(s): "
+            + ", ".join(
+                selected(
+                    args.domain_filter_graph,
+                    DOMAIN_FILTER_GRAPHS,
+                    "both",
+                )
+            )
+        )
     if any(solver in EXACT_SOLVERS for solver in solvers):
         print(
             "Exact baselines: Reduced + DistanceClosure; "
@@ -1749,6 +1837,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"[{current_run}/{total_runs}] {instance.instance_name} | "
                 f"{configuration.domain_mode} | "
                 f"{configuration.solver_name} | "
+                f"F={configuration.domain_filter_graph} | "
                 f"P={configuration.precedence_encoding} | "
                 f"G={configuration.precedence_graph} | "
                 f"{configuration.encoding_variant}",
@@ -1759,6 +1848,7 @@ def main(argv: list[str] | None = None) -> int:
                 instance.path,
                 configuration.precedence_encoding,
                 configuration.precedence_graph,
+                configuration.domain_filter_graph,
                 configuration.encoding_variant,
                 configuration.domain_mode,
                 args.maxsat_backend,

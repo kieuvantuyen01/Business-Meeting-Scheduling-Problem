@@ -41,9 +41,10 @@ class ExcelResultsTests(unittest.TestCase):
         )
         self.assertEqual(metadata["optimization_engine"], "UWrMaxSAT")
         self.assertEqual(
-            [metadata[f"factor_{factor}"] for factor in "mpgbosi"],
+            [metadata[f"factor_{factor}"] for factor in "mfpgbosi"],
             [
                 "Reduced",
+                "Filter-E*",
                 "SparseSuffix",
                 "DistanceClosure-E*",
                 "SpanThreshold",
@@ -173,7 +174,9 @@ class ExcelResultsTests(unittest.TestCase):
                 "instance_sha256",
                 "configuration_key",
                 "factor_m",
+                "factor_f",
                 "factor_i",
+                "domain_filter_graph",
                 "n_primary_variables",
                 "n_auxiliary_variables",
                 "n_total_literals",

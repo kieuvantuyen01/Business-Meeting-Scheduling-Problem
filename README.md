@@ -51,8 +51,8 @@ schedule-variable domain:
   \(M\times T\). Session, fixed-slot, and forbidden-slot violations are disabled
   by explicit hard unit clauses.
 - `Reduced` creates schedule variables only at the exact preprocessing fixed
-  point after unary filtering, distance-aware precedence propagation,
-  participant all-different matching GAC, and saturated slot-capacity
+  point after unary filtering, precedence propagation over the selected filter
+  graph, participant all-different matching GAC, and saturated slot-capacity
   propagation.
 
 All other hard constraints, `SpanThreshold` idle encoding, `IdleRange(P*)`
@@ -77,15 +77,23 @@ The shared encoder exposes the precedence constraint encoding (P) and graph
 - `--precedence-graph distance_closure` encodes every transitive relation with
   its longest-path distance.
 
-This gives the complete `2 x 2` factorial matrix. Domain preprocessing remains
-distance-closure-based in all four cells, so changing G affects only the
-relations encoded in the CNF. The deprecated aliases remain exact mappings:
+This gives the complete `2 x 2` P/G factorial matrix. Reduced-domain
+preprocessing has a separate F factor:
+
+- `--domain-filter-graph direct` uses the direct input graph E (`Filter-E`).
+- `--domain-filter-graph distance_closure` uses the distance-labelled closure
+  E* (`Filter-E*`, the backward-compatible default).
+- `--domain-filter-graph both` emits both Reduced configurations. Full is
+  emitted once because preprocessing does not change its schedule variables.
+
+Thus F controls domain filtering while G controls only the relations encoded
+in the CNF. The deprecated aliases remain exact P/G mappings:
 `traditional = pairwise + direct` and
 `staircase = sparse_suffix + distance_closure`.
 
-Detailed CSV output records `precedence_encoding`, `precedence_graph`, their
-composite label, selected relation count, pairwise clause count, sparse link
-count, and unique suffix-cut count.
+Detailed CSV output records `domain_filter_graph`, `precedence_encoding`,
+`precedence_graph`, their factor labels, selected relation count, pairwise
+clause count, sparse link count, and unique suffix-cut count.
 
 ## Commercial exact baselines
 
@@ -134,6 +142,21 @@ On a precedence instance the same omitted P/G flags expand to all four cells,
 giving exactly `2 domains x 4 P/G cells x 3 engines = 24` runs. Explicit P/G
 flags always override this automatic collapse. Use `--encoding-variant all`
 only for a diagnostic implied-constraint ablation.
+
+Run only the new Filter-E Reduced cells while retaining the full P/G matrix:
+
+```bash
+python3 src/Main.py \
+  --manifest instances_manifest.csv \
+  --family precedence \
+  --solver sat_all \
+  --domain-mode reduced \
+  --domain-filter-graph direct \
+  --precedence-encoding both \
+  --precedence-graph both \
+  --encoding-variant imp12+ \
+  --csv output/precedence_filter_e.csv
+```
 
 Run only the three commercial exact baselines:
 
@@ -332,12 +355,13 @@ python3 src/Normalize_Official_Run.py \
 
 ## Configuration identity
 
-Every row stores the seven factors separately: M (domain), P (precedence
-encoding), G (precedence graph), B (`SpanThreshold`), O (`IdleRangePstar`), S
-(optimization engine), and I (implied package). A compact label such as
-`R-SS-DC-ST-IRP-UW-IC12P` contains all seven factors. The versioned
-`configuration_id`/`configuration_key` additionally contains their full names
-and the exact backend and is the unique machine key.
+Every row stores eight factors separately: M (domain), F (domain-filter graph),
+P (precedence encoding), G (CNF precedence graph), B (`SpanThreshold`), O
+(`IdleRangePstar`), S (optimization engine), and I (implied package). Existing
+Filter-E* labels and `cfg2` machine IDs remain unchanged so completed results
+remain reusable. A new Filter-E label such as
+`R-FE-SS-DC-ST-IRP-UW-IC12P` and its `cfg4` machine ID explicitly record
+`f-direct`.
 
 The I-factor names have distinct, documented roles:
 

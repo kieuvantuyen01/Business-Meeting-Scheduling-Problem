@@ -12,10 +12,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from Main import (
+    InstanceSpec,
     VARIANT_CODES,
     VARIANT_FACTOR_NAMES,
+    benchmark_configurations,
+    configuration_metadata,
     parse_args,
     precedence_configurations,
+    selected_solvers,
     write_aggregate_csv,
 )
 
@@ -29,6 +33,10 @@ class MainPrecedenceFactorialTests(unittest.TestCase):
         default_args = parse_args([])
         self.assertEqual(default_args.maxsat_backend, "uwrmaxsat")
         self.assertEqual(default_args.sat_backend, "cadical")
+        self.assertEqual(
+            default_args.domain_filter_graph,
+            "distance_closure",
+        )
         self.assertEqual(
             precedence_configurations(default_args),
             [
@@ -61,6 +69,83 @@ class MainPrecedenceFactorialTests(unittest.TestCase):
             [("sparse_suffix", "direct")],
         )
 
+    def test_filter_e_expands_only_meaningful_reduced_cells(self) -> None:
+        instance = InstanceSpec(
+            path=Path("micro.dzn"),
+            instance_name="micro",
+            content_id="micro-id",
+            sha256="0" * 64,
+            family="precedence",
+            variant="precedence",
+            has_precedence=True,
+            source_alias_count=1,
+            source_alias_paths="micro.dzn",
+        )
+        args = parse_args(
+            [
+                "--solver",
+                "maxsat",
+                "--domain-mode",
+                "both",
+                "--domain-filter-graph",
+                "both",
+            ]
+        )
+        configurations = benchmark_configurations(
+            args,
+            instance,
+            selected_solvers(args.solver),
+        )
+
+        full = [
+            config for config in configurations if config.domain_mode == "full"
+        ]
+        reduced = [
+            config
+            for config in configurations
+            if config.domain_mode == "reduced"
+        ]
+        self.assertEqual(len(full), 4)
+        self.assertEqual(
+            {config.domain_filter_graph for config in full},
+            {"distance_closure"},
+        )
+        self.assertEqual(len(reduced), 8)
+        self.assertEqual(
+            {config.domain_filter_graph for config in reduced},
+            {"direct", "distance_closure"},
+        )
+
+    def test_filter_e_has_a_distinct_id_while_filter_e_star_stays_stable(self) -> None:
+        common = {
+            "solver_name": "maxsat",
+            "precedence_encoding": "sparse_suffix",
+            "precedence_graph": "distance_closure",
+            "encoding_variant": "imp12+",
+            "domain_mode": "reduced",
+            "maxsat_backend": "uwrmaxsat",
+            "sat_backend": "cadical",
+        }
+        closure = configuration_metadata(**common)
+        direct = configuration_metadata(
+            **common,
+            domain_filter_graph="direct",
+        )
+
+        self.assertEqual(
+            closure["configuration_label"],
+            "R-SS-DC-ST-IRP-UW-IC12P",
+        )
+        self.assertTrue(closure["configuration_id"].startswith("cfg2__"))
+        self.assertEqual(closure["factor_f"], "Filter-E*")
+        self.assertEqual(
+            direct["configuration_label"],
+            "R-FE-SS-DC-ST-IRP-UW-IC12P",
+        )
+        self.assertTrue(direct["configuration_id"].startswith("cfg4__"))
+        self.assertIn("__f-direct__", direct["configuration_id"])
+        self.assertEqual(direct["factor_f"], "Filter-E")
+
     def test_legacy_and_independent_flags_cannot_be_mixed(self) -> None:
         with redirect_stderr(StringIO()):
             with self.assertRaises(SystemExit):
@@ -73,26 +158,28 @@ class MainPrecedenceFactorialTests(unittest.TestCase):
                     ]
                 )
 
-    def test_aggregate_csv_keeps_all_four_factorial_rows_separate(self) -> None:
+    def test_aggregate_csv_keeps_f_p_g_factorial_rows_separate(self) -> None:
         results = []
-        for precedence_encoding in ("pairwise", "sparse_suffix"):
-            for precedence_graph in ("direct", "distance_closure"):
-                results.append(
-                    {
-                        "instance": "micro",
-                        "precedence_encoding": precedence_encoding,
-                        "precedence_graph": precedence_graph,
-                        "precedence_configuration": (
-                            f"{precedence_encoding}+{precedence_graph}"
-                        ),
-                        "solver": "maxsat",
-                        "domain_mode": "reduced",
-                        "encoding_variant": "imp12+",
-                        "sat_result": "SAT",
-                        "runtime_seconds": 0.1,
-                        "idle_range_pstar": 0,
-                    }
-                )
+        for domain_filter_graph in ("direct", "distance_closure"):
+            for precedence_encoding in ("pairwise", "sparse_suffix"):
+                for precedence_graph in ("direct", "distance_closure"):
+                    results.append(
+                        {
+                            "instance": "micro",
+                            "domain_filter_graph": domain_filter_graph,
+                            "precedence_encoding": precedence_encoding,
+                            "precedence_graph": precedence_graph,
+                            "precedence_configuration": (
+                                f"{precedence_encoding}+{precedence_graph}"
+                            ),
+                            "solver": "maxsat",
+                            "domain_mode": "reduced",
+                            "encoding_variant": "imp12+",
+                            "sat_result": "SAT",
+                            "runtime_seconds": 0.1,
+                            "idle_range_pstar": 0,
+                        }
+                    )
 
         with tempfile.TemporaryDirectory(prefix="b2b_factorial_test_") as temp:
             output = Path(temp) / "aggregate.csv"
@@ -100,17 +187,21 @@ class MainPrecedenceFactorialTests(unittest.TestCase):
             with output.open(newline="", encoding="utf-8") as stream:
                 rows = list(csv.DictReader(stream))
 
-        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(rows), 8)
         self.assertEqual(
             {
-                (row["precedence_encoding"], row["precedence_graph"])
+                (
+                    row["domain_filter_graph"],
+                    row["precedence_encoding"],
+                    row["precedence_graph"],
+                )
                 for row in rows
             },
             {
-                ("pairwise", "direct"),
-                ("pairwise", "distance_closure"),
-                ("sparse_suffix", "direct"),
-                ("sparse_suffix", "distance_closure"),
+                (domain_filter_graph, precedence_encoding, precedence_graph)
+                for domain_filter_graph in ("direct", "distance_closure")
+                for precedence_encoding in ("pairwise", "sparse_suffix")
+                for precedence_graph in ("direct", "distance_closure")
             },
         )
         self.assertNotIn("staircase", rows[0])

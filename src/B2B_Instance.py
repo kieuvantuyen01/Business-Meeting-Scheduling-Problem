@@ -12,12 +12,14 @@ from pysat.formula import CNF, IDPool, WCNF
 PrecedenceMode = Literal["traditional", "staircase"]
 PrecedenceEncoding = Literal["pairwise", "sparse_suffix"]
 PrecedenceGraph = Literal["direct", "distance_closure"]
+DomainFilterGraph = Literal["direct", "distance_closure"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
 DomainMode = Literal["full", "reduced"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
 VALID_PRECEDENCE_ENCODINGS = {"pairwise", "sparse_suffix"}
 VALID_PRECEDENCE_GRAPHS = {"direct", "distance_closure"}
+VALID_DOMAIN_FILTER_GRAPHS = {"direct", "distance_closure"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
 VALID_DOMAIN_MODES = {"full", "reduced"}
 
@@ -147,6 +149,7 @@ class B2BModelArtifacts:
     precedence_graph: str
     precedence_configuration: str
     domain_mode: str
+    domain_filter_graph: str
     enabled_constraints: list[str]
     full_schedule_candidates: int
     unary_eligible_schedule_candidates: int
@@ -481,12 +484,12 @@ def _has_full_slot_matching(
 
 def _propagate_distance_precedences(
     domains: list[set[int]],
-    graph: PrecedenceGraphInfo,
+    distances_by_post: list[dict[int, int]],
 ) -> bool:
-    """Apply bounds consistency to every distance-labelled edge in E*."""
+    """Apply precedence bounds consistency over the selected filtering graph."""
 
     changed = False
-    for post, distances in enumerate(graph.longest_distance):
+    for post, distances in enumerate(distances_by_post):
         for pred, distance in distances.items():
             pred_domain = domains[pred]
             post_domain = domains[post]
@@ -573,13 +576,19 @@ def _propagate_saturated_table_slots(
 def reduce_domains_with_precedence(
     inst: B2BInstance,
     graph: PrecedenceGraphInfo,
+    domain_filter_graph: DomainFilterGraph = "distance_closure",
 ) -> tuple[list[list[int]], int, int]:
     """Run exact preprocessing to a fixpoint.
 
-    The fixpoint combines unary restrictions, distance-aware E* propagation,
-    participant all-different matching GAC, and saturated table-slot propagation.
+    The fixpoint combines unary restrictions, precedence propagation over either
+    direct E or distance-labelled E*, participant all-different matching GAC, and
+    saturated table-slot propagation.
     """
 
+    if domain_filter_graph not in VALID_DOMAIN_FILTER_GRAPHS:
+        raise ValueError(
+            f"Unknown domain_filter_graph={domain_filter_graph!r}"
+        )
     domains = [original_eligible_slots(inst, m) for m in range(inst.n_meetings)]
     initial_count = sum(len(domain) for domain in domains)
 
@@ -587,9 +596,20 @@ def reduce_domains_with_precedence(
         domains[graph.cycle_nodes[0]].clear()
         return [sorted(domain) for domain in domains], initial_count, sum(map(len, domains))
 
+    if domain_filter_graph == "direct":
+        effective_distances = [
+            {pred: 1 for pred in predecessors}
+            for predecessors in graph.direct_predecessors
+        ]
+    else:
+        effective_distances = graph.longest_distance
+
     changed = True
     while changed:
-        changed = _propagate_distance_precedences(domains, graph)
+        changed = _propagate_distance_precedences(
+            domains,
+            effective_distances,
+        )
         matching_changed, feasible = _propagate_participant_matchings(inst, domains)
         changed = changed or matching_changed
         if not feasible:
@@ -808,8 +828,9 @@ class B2BSATModel:
 
     ``precedence_encoding`` (P) and ``precedence_graph`` (G) are independent:
     either encoding can consume either the direct distance-one relations or the
-    distance-labelled transitive closure. Domain preprocessing intentionally
-    uses the same distance closure for every P/G configuration.
+    distance-labelled transitive closure. ``domain_filter_graph`` (F) independently
+    selects direct E or distance-labelled E* for the exact domain-reduction
+    fixpoint, while the encoded precedence graph remains unchanged.
 
     ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
     and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
@@ -826,11 +847,16 @@ class B2BSATModel:
         *,
         precedence_encoding: PrecedenceEncoding | None = None,
         precedence_graph: PrecedenceGraph | None = None,
+        domain_filter_graph: DomainFilterGraph = "distance_closure",
     ) -> None:
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
         if domain_mode not in VALID_DOMAIN_MODES:
             raise ValueError(f"Unknown domain_mode={domain_mode!r}")
+        if domain_filter_graph not in VALID_DOMAIN_FILTER_GRAPHS:
+            raise ValueError(
+                f"Unknown domain_filter_graph={domain_filter_graph!r}"
+            )
 
         (
             resolved_precedence_encoding,
@@ -852,6 +878,7 @@ class B2BSATModel:
         )
         self.encoding_variant = encoding_variant
         self.domain_mode = domain_mode
+        self.domain_filter_graph = domain_filter_graph
         self.objective_participants = tuple(
             participant
             for participant, meeting_count in enumerate(inst.n_meetings_business)
@@ -875,7 +902,11 @@ class B2BSATModel:
             self._reduced_slots,
             reduction_initial_count,
             self.reduced_schedule_candidates,
-        ) = reduce_domains_with_precedence(inst, self.graph)
+        ) = reduce_domains_with_precedence(
+            inst,
+            self.graph,
+            domain_filter_graph=self.domain_filter_graph,
+        )
         self.full_schedule_candidates = inst.n_meetings * inst.n_total_slots
         self.unary_eligible_schedule_candidates = sum(
             len(slots) for slots in self._unary_eligible_slots
@@ -1094,10 +1125,16 @@ class B2BSATModel:
             return self._artifacts
 
         cnf = CNF()
+        filter_label = (
+            "direct E"
+            if self.domain_filter_graph == "direct"
+            else "distance-labelled E*"
+        )
         self.enabled_constraints = [
             "objective-only optimization: no hard upper bound on objective gap",
-            "P/G-independent distance-closure domain propagation and cycle detection",
+            f"F-selected {filter_label} domain propagation and cycle detection",
             "precedence configuration: "
+            f"F={self.domain_filter_graph}, "
             f"P={self.precedence_encoding}, G={self.precedence_graph}",
         ]
         if self.domain_mode == "full":
@@ -1153,6 +1190,7 @@ class B2BSATModel:
             precedence_graph=self.precedence_graph,
             precedence_configuration=self.precedence_configuration,
             domain_mode=self.domain_mode,
+            domain_filter_graph=self.domain_filter_graph,
             enabled_constraints=list(self.enabled_constraints),
             full_schedule_candidates=self.full_schedule_candidates,
             unary_eligible_schedule_candidates=(
@@ -1738,6 +1776,12 @@ def _main() -> None:
         help="G factor: direct or distance_closure",
     )
     parser.add_argument(
+        "--domain-filter-graph",
+        choices=sorted(VALID_DOMAIN_FILTER_GRAPHS),
+        default="distance_closure",
+        help="F factor for Reduced preprocessing: direct (E) or closure (E*)",
+    )
+    parser.add_argument(
         "--encoding-variant",
         choices=sorted(VALID_ENCODING_VARIANTS),
         default="imp12+",
@@ -1771,6 +1815,7 @@ def _main() -> None:
         precedence_mode=args.precedence_mode,
         precedence_encoding=args.precedence_encoding,
         precedence_graph=args.precedence_graph,
+        domain_filter_graph=args.domain_filter_graph,
         encoding_variant=args.encoding_variant,
         domain_mode=args.domain_mode,
     )
@@ -1783,6 +1828,7 @@ def _main() -> None:
     print(f"precedence_graph={artifacts.precedence_graph}")
     print(f"precedence_configuration={artifacts.precedence_configuration}")
     print(f"domain_mode={artifacts.domain_mode}")
+    print(f"domain_filter_graph={artifacts.domain_filter_graph}")
     print(
         "schedule_candidates="
         f"active:{artifacts.active_schedule_candidates}, "

@@ -158,6 +158,7 @@ class B2BMaxSATSolver:
         *,
         precedence_encoding: str | None = None,
         precedence_graph: str | None = None,
+        domain_filter_graph: str = "distance_closure",
         backend: MaxSATBackend | str | None = None,
         uwrmaxsat_bin: str | Path | None = None,
         uwrmaxsat_sha256: str | None = None,
@@ -248,6 +249,7 @@ class B2BMaxSATSolver:
             precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
+            domain_filter_graph=domain_filter_graph,
         )
         self.artifacts = self.model.build_base_cnf()
 
@@ -294,6 +296,7 @@ class B2BMaxSATSolver:
             ),
             "encoding_variant": self.artifacts.encoding_variant,
             "domain_mode": self.artifacts.domain_mode,
+            "domain_filter_graph": self.artifacts.domain_filter_graph,
             "objective": self.artifacts.objective_name,
             "objective_participant_count": len(
                 self.artifacts.objective_participants
@@ -608,6 +611,7 @@ def solve_b2b(
     *,
     precedence_encoding: str | None = None,
     precedence_graph: str | None = None,
+    domain_filter_graph: str = "distance_closure",
     backend: MaxSATBackend | str | None = None,
     uwrmaxsat_bin: str | Path | None = None,
     uwrmaxsat_sha256: str | None = None,
@@ -620,6 +624,7 @@ def solve_b2b(
         precedence_graph=precedence_graph,
         encoding_variant=encoding_variant,
         domain_mode=domain_mode,
+        domain_filter_graph=domain_filter_graph,
         backend=backend,
         uwrmaxsat_bin=uwrmaxsat_bin,
         uwrmaxsat_sha256=uwrmaxsat_sha256,
