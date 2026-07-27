@@ -46,6 +46,7 @@ class B2BIncrementalSATSolver:
         *,
         precedence_encoding: str | None = None,
         precedence_graph: str | None = None,
+        domain_filter_graph: str = "distance_closure",
     ) -> None:
         if (
             precedence_mode is None
@@ -61,6 +62,7 @@ class B2BIncrementalSATSolver:
             precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
             domain_mode=domain_mode,
+            domain_filter_graph=domain_filter_graph,
         )
         self.artifacts = self.model.build_base_cnf()
         self.solver_name = normalize_sat_backend(solver_name)
@@ -96,6 +98,7 @@ class B2BIncrementalSATSolver:
             ),
             "encoding_variant": self.artifacts.encoding_variant,
             "domain_mode": self.artifacts.domain_mode,
+            "domain_filter_graph": self.artifacts.domain_filter_graph,
             "objective": self.artifacts.objective_name,
             "objective_participant_count": len(
                 self.artifacts.objective_participants
@@ -308,6 +311,7 @@ def solve_b2b(
     *,
     precedence_encoding: str | None = None,
     precedence_graph: str | None = None,
+    domain_filter_graph: str = "distance_closure",
 ) -> dict[str, Any]:
     return B2BIncrementalSATSolver(
         instance_or_path=instance_or_path,
@@ -317,6 +321,7 @@ def solve_b2b(
         encoding_variant=encoding_variant,
         solver_name=solver_name,
         domain_mode=domain_mode,
+        domain_filter_graph=domain_filter_graph,
     ).solve(verbose=verbose)
 
 
@@ -325,6 +330,7 @@ def solve_b2b_traditional(
     encoding_variant: str = "imp12+",
     verbose: bool = False,
     domain_mode: str = "reduced",
+    domain_filter_graph: str = "distance_closure",
 ) -> dict[str, Any]:
     return solve_b2b(
         instance_or_path=instance_or_path,
@@ -332,6 +338,7 @@ def solve_b2b_traditional(
         encoding_variant=encoding_variant,
         verbose=verbose,
         domain_mode=domain_mode,
+        domain_filter_graph=domain_filter_graph,
     )
 
 
@@ -340,6 +347,7 @@ def solve_b2b_staircase(
     encoding_variant: str = "imp12+",
     verbose: bool = False,
     domain_mode: str = "reduced",
+    domain_filter_graph: str = "distance_closure",
 ) -> dict[str, Any]:
     return solve_b2b(
         instance_or_path=instance_or_path,
@@ -347,4 +355,5 @@ def solve_b2b_staircase(
         encoding_variant=encoding_variant,
         verbose=verbose,
         domain_mode=domain_mode,
+        domain_filter_graph=domain_filter_graph,
     )
