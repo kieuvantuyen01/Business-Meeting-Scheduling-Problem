@@ -1,0 +1,55 @@
+[33m9849928[m[33m ([m[1;36mHEAD -> [m[1;32mTotal-fainess[m[33m)[m Add data_precedence_stress_high benchmark results
+ .gitignore                                                                                  |   3 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/dataset_metadata.json                |  15 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13.prec50.xlsx           | Bin [31m0[m -> [32m22788[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13.prec60.xlsx           | Bin [31m0[m -> [32m22805[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13crafb.prec50.xlsx      | Bin [31m0[m -> [32m22800[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13crafb.prec60.xlsx      | Bin [31m0[m -> [32m22841[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13crafc.prec50.xlsx      | Bin [31m0[m -> [32m22773[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-13crafc.prec60.xlsx      | Bin [31m0[m -> [32m22793[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-14.prec50.xlsx           | Bin [31m0[m -> [32m22840[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forum-14.prec60.xlsx           | Bin [31m0[m -> [32m22844[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14.prec50.xlsx          | Bin [31m0[m -> [32m22657[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14.prec60.xlsx          | Bin [31m0[m -> [32m22606[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafc.prec50.xlsx     | Bin [31m0[m -> [32m22646[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafc.prec60.xlsx     | Bin [31m0[m -> [32m22640[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafd.prec50.xlsx     | Bin [31m0[m -> [32m22692[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafd.prec60.xlsx     | Bin [31m0[m -> [32m22679[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafe.prec50.xlsx     | Bin [31m0[m -> [32m22695[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/forumt-14crafe.prec60.xlsx     | Bin [31m0[m -> [32m22706[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-12.prec50.xlsx             | Bin [31m0[m -> [32m22393[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-12.prec60.xlsx             | Bin [31m0[m -> [32m22416[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-12crafc.prec50.xlsx        | Bin [31m0[m -> [32m22456[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-12crafc.prec60.xlsx        | Bin [31m0[m -> [32m22452[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13.prec50.xlsx             | Bin [31m0[m -> [32m22540[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13.prec60.xlsx             | Bin [31m0[m -> [32m22577[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13crafb.prec50.xlsx        | Bin [31m0[m -> [32m22562[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13crafb.prec60.xlsx        | Bin [31m0[m -> [32m22555[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13crafc.prec50.xlsx        | Bin [31m0[m -> [32m22642[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-13crafc.prec60.xlsx        | Bin [31m0[m -> [32m22659[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafa.prec50.xlsx        | Bin [31m0[m -> [32m22587[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafa.prec60.xlsx        | Bin [31m0[m -> [32m22584[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafc.prec50.xlsx        | Bin [31m0[m -> [32m22634[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafc.prec60.xlsx        | Bin [31m0[m -> [32m22646[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafd.prec50.xlsx        | Bin [31m0[m -> [32m22646[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/tic-14crafd.prec60.xlsx        | Bin [31m0[m -> [32m22606[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafa.prec50.xlsx       | Bin [31m0[m -> [32m22743[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafa.prec60.xlsx       | Bin [31m0[m -> [32m22752[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafb.prec50.xlsx       | Bin [31m0[m -> [32m22762[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafb.prec60.xlsx       | Bin [31m0[m -> [32m22800[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafc.prec50.xlsx       | Bin [31m0[m -> [32m22820[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-13crafc.prec60.xlsx       | Bin [31m0[m -> [32m22772[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-14crafa.prec50.xlsx       | Bin [31m0[m -> [32m22857[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/excel/ticf-14crafa.prec60.xlsx       | Bin [31m0[m -> [32m22856[m bytes
+ output/precedence_stress_high_20260726T123630Z_7e1393a/exit_code.txt                        |   1 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/finished_utc.txt                     |   1 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/generation_manifest.csv              |  41 [32m+++[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/git_commit.txt                       |   1 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/git_status_before_run.txt            |   2 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/instances_manifest.csv               |  41 [32m+++[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/precedence_stress_high_aggregate.csv | 961 [32m++++++++++++++++++++++++++++++++++++++++++++++++++++++++[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/precedence_stress_high_detailed.csv  | 961 [32m++++++++++++++++++++++++++++++++++++++++++++++++++++++++[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/started_utc.txt                      |   1 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/uwrmaxsat_path.txt                   |   1 [32m+[m
+ output/precedence_stress_high_20260726T123630Z_7e1393a/uwrmaxsat_sha256.txt                 |   1 [32m+[m
+ 53 files changed, 2030 insertions(+)
