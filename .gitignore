@@ -7,3 +7,6 @@
 .venv-ubuntu/
 __pycache__/
 *.log
+
+# Benchmark runtime logs
+**/run.log

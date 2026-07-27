@@ -1,0 +1,1 @@
+/home/dclng566/solver-build/uwrmaxsat/build/release/bin/uwrmaxsat
