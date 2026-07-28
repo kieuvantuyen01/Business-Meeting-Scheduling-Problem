@@ -158,6 +158,34 @@ python3 src/Main.py \
   --csv output/precedence_filter_e.csv
 ```
 
+Run the complete additive Filter-E campaign across every precedence density
+used in the study with:
+
+```bash
+PLAN_ONLY=1 ./run_filter_e_all_precedence.sh
+
+UWRMAXSAT_BIN=/absolute/path/to/uwrmaxsat \
+./run_filter_e_all_precedence.sh
+```
+
+The plan contains all three Boolean engines and the full P/G factorial at
+Reduced domains. Full-domain models are not duplicated because F does not alter
+their \(x_{m,t}\) variables.
+
+| Dataset block | Variants | Instances | Filter-E cells/instance | New runs |
+| --- | --- | ---: | ---: | ---: |
+| Official precedence | `prec15`, `prec25` | 40 | 12 | 480 |
+| Stress | `prec30`, `prec35`, `prec40` | 60 | 12 | 720 |
+| Stress-high | `prec50`, `prec60` | 40 | 12 | 480 |
+| **Total** | `prec15`--`prec60` | **140** | **12** | **1680** |
+
+Here each instance contributes
+`3 engines x 2 precedence encodings x 2 CNF precedence graphs = 12` cells.
+The runner writes separate detailed CSVs for the three blocks and calls
+`src/Validate_Filter_E_Run.py` before creating an archive. Terminal timeouts
+count as executed cells, while missing, duplicate, Filter-E*, or solver-error
+rows fail validation.
+
 Run only the three commercial exact baselines:
 
 ```bash
@@ -311,6 +339,10 @@ python3 src/Main.py \
   --csv output/precedence_stress_pilot.csv
 ```
 
+The primary all-engine Filter-E campaign does not stop at `prec40`; it includes
+all 60 instances in this directory through
+`run_filter_e_all_precedence.sh` (720 new Filter-E runs).
+
 ### High-density extension
 
 `data_precedence_stress_high/` adds 20 witness-preserving contents at each of
@@ -343,6 +375,9 @@ python3 src/Main.py \
   --timeout 7200 \
   --csv output/precedence_stress_high_pilot.csv
 ```
+
+The same primary Filter-E campaign includes all 40 `prec50`/`prec60` instances
+through `run_filter_e_all_precedence.sh` (480 new Filter-E runs).
 
 To clean an older run in which the Fixed rows leaked into
 `data_table06_forb`, without rerunning a solver:

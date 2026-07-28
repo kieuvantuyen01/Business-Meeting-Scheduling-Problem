@@ -64,3 +64,18 @@ python3 src/Main.py \
   --timeout 7200 \
   --csv output/data_precedence_stress_high_pilot.csv
 ```
+
+## Complete Filter-E block
+
+The study-wide Filter-E campaign includes every `prec50` and `prec60` instance
+in this directory. For each instance it runs all three Boolean engines and all
+four P/G cells at Reduced domains:
+
+```bash
+UWRMAXSAT_BIN=/absolute/path/to/uwrmaxsat \
+./run_filter_e_all_precedence.sh
+```
+
+This directory contributes
+`40 instances x 3 engines x 2 P x 2 G = 480` new Filter-E runs. Together with
+the official and stress manifests, the complete campaign contains 1680 runs.
