@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -9,14 +10,23 @@ from pysat.card import CardEnc, EncType
 from pysat.formula import CNF, IDPool, WCNF
 
 PrecedenceMode = Literal["traditional", "staircase"]
-PrecedenceEdgeMode = Literal["direct", "source-closure"]
+PrecedenceEncoding = Literal["pairwise", "sparse_suffix"]
+PrecedenceGraph = Literal["direct", "distance_closure"]
+DomainFilterGraph = Literal["direct", "distance_closure"]
 EncodingVariant = Literal["basic", "imp1", "imp2", "imp12", "imp12+"]
-ObjectiveMode = Literal["idle-range", "lexicographic"]
+DomainMode = Literal["full", "reduced"]
 
 VALID_PRECEDENCE_MODES = {"traditional", "staircase"}
-VALID_PRECEDENCE_EDGE_MODES = {"direct", "source-closure"}
+VALID_PRECEDENCE_ENCODINGS = {"pairwise", "sparse_suffix"}
+VALID_PRECEDENCE_GRAPHS = {"direct", "distance_closure"}
+VALID_DOMAIN_FILTER_GRAPHS = {"direct", "distance_closure"}
 VALID_ENCODING_VARIANTS = {"basic", "imp1", "imp2", "imp12", "imp12+"}
-VALID_OBJECTIVE_MODES = {"idle-range", "lexicographic"}
+VALID_DOMAIN_MODES = {"full", "reduced"}
+
+LEGACY_PRECEDENCE_CONFIGURATIONS: dict[str, tuple[str, str]] = {
+    "traditional": ("pairwise", "direct"),
+    "staircase": ("sparse_suffix", "distance_closure"),
+}
 
 
 @dataclass(frozen=True)
@@ -59,29 +69,27 @@ class B2BInstance:
 class PrecedenceGraphInfo:
     direct_predecessors: list[set[int]]
     transitive_predecessors: list[set[int]]
-    source_augmented_predecessors: list[set[int]]
+    longest_distance: list[dict[int, int]]
     successors: list[set[int]]
-    source_nodes: tuple[int, ...]
     cycle_nodes: tuple[int, ...]
     direct_edge_count: int
     transitive_edge_count: int
-    source_added_edge_count: int
-    source_augmented_edge_count: int
+    max_chain_distance: int
 
 
 @dataclass(frozen=True)
 class B2BSolutionStats:
-    """Schedule statistics for the internal-idle-slot range objective.
+    """Schedule statistics for the internal-idle-slot range over P*.
 
     ``participant_breaks[p]`` is retained for backward compatibility, but now
     stores the total number of idle time slots between consecutive meetings of
-    participant p, not the number of contiguous break groups. ``fairness_gap``
-    is evaluated only over participants with at least two meetings.
+    participant p, not the number of contiguous break groups. The objective
+    gap is evaluated only over ``P* = {p : |M_p| >= 2}``.
     """
 
     total_breaks: int
     participant_breaks: list[int]
-    fairness_gap: int
+    objective_gap: int
     all_participant_idle_range: int
     objective_participants: tuple[int, ...]
     meetings_per_slot: list[list[int]]
@@ -99,13 +107,13 @@ class B2BSolutionStats:
 
     @property
     def idle_range(self) -> int:
-        """Range of internal idle totals over the objective participant set."""
-        return self.fairness_gap
+        """Range of internal-idle totals over P*."""
+        return self.objective_gap
 
     @property
     def objective_participant_ids(self) -> tuple[int, ...]:
-        """One-based participant IDs used by the objective."""
-        return tuple(p + 1 for p in self.objective_participants)
+        """One-based participant IDs in P*."""
+        return tuple(participant + 1 for participant in self.objective_participants)
 
     # Backward-compatible names used by the existing benchmark runner.
     @property
@@ -116,34 +124,50 @@ class B2BSolutionStats:
     def participant_break_slots(self) -> list[int]:
         return self.participant_internal_idle_slots
 
-
 @dataclass(frozen=True)
 class B2BModelArtifacts:
     cnf: CNF
     objective_lits: list[int]
-    secondary_objective_lits: list[int]
     objective_name: str
-    objective_mode: str
     objective_participants: tuple[int, ...]
-    fairness_limit: int | None
-    fairness_gap_lits: list[int]
+    objective_gap_lits: list[int]
     hole_lits_by_participant: list[list[int]]
     sorted_hole_lits_by_participant: list[list[int]]
     n_vars: int
     n_clauses: int
+    n_primary_variables: int
+    n_auxiliary_variables: int
+    n_hard_literals: int
+    max_hard_clause_length: int
+    n_unit_hard_clauses: int
+    n_binary_hard_clauses: int
+    n_ternary_hard_clauses: int
+    n_long_hard_clauses: int
     encoding_variant: str
     precedence_mode: str
-    precedence_edge_mode: str
+    precedence_encoding: str
+    precedence_graph: str
+    precedence_configuration: str
+    domain_mode: str
+    domain_filter_graph: str
     enabled_constraints: list[str]
+    full_schedule_candidates: int
+    unary_eligible_schedule_candidates: int
     initial_schedule_candidates: int
     reduced_schedule_candidates: int
+    active_schedule_candidates: int
+    unary_removed_schedule_candidates: int
+    preprocessing_removed_schedule_candidates: int
     removed_schedule_candidates: int
     precedence_direct_edges: int
     precedence_transitive_edges: int
-    precedence_source_added_edges: int
-    precedence_encoded_edges: int
     precedence_cycle_nodes: tuple[int, ...]
-
+    precedence_max_distance: int
+    precedence_relation_edges: int
+    precedence_pairwise_clauses: int
+    precedence_sparse_link_clauses: int
+    precedence_unique_suffix_cuts: int
+    objective_encoding: str
 
 # ---------------------------------------------------------------------------
 # MiniZinc .dzn parser
@@ -333,61 +357,71 @@ def read_instance(path: str | Path, *, validate_meetingsx_business: bool = True)
 
 
 # ---------------------------------------------------------------------------
-# Precedence graph and domain reduction
+# Precedence graph and optimized domain reduction
 # ---------------------------------------------------------------------------
 
 
 def build_precedence_graph(precedences: list[set[int]]) -> PrecedenceGraphInfo:
-    """Compute direct, full-closure, and source-augmented precedence graphs.
+    """Build E*, detect cycles, and compute longest precedence-chain distances.
 
-    Let ``E`` be the input edge set and let ``R`` contain the source vertices of
-    ``E``.  The source-augmented set is
-
-        E_R = E union {(r, v): r in R and r reaches v in E}.
-
-    Thus every original precedence is retained, while new shortcut arcs are
-    added only when their first endpoint is a source.  The full transitive
-    closure is retained for cycle detection and graph statistics; it is not the
-    edge set encoded by the ``source-closure`` variant.
+    ``longest_distance[post][pred] = d`` means that the longest directed path
+    from ``pred`` to ``post`` contains ``d`` strict-precedence edges. Therefore
+    every feasible schedule satisfies ``time(pred) + d <= time(post)``.
     """
 
     n = len(precedences)
     direct = [set(preds) for preds in precedences]
     closure = [set(preds) for preds in precedences]
 
-    # Warshall over predecessor sets: if k precedes v, all predecessors of k precede v.
     for k in range(n):
-        for v in range(n):
-            if k in closure[v]:
-                closure[v].update(closure[k])
+        for post in range(n):
+            if k in closure[post]:
+                closure[post].update(closure[k])
 
     successors = [set() for _ in range(n)]
+    indegree = [0] * n
     for post, preds in enumerate(direct):
+        indegree[post] = len(preds)
         for pred in preds:
             successors[pred].add(post)
 
-    source_nodes = tuple(v for v, preds in enumerate(direct) if not preds)
-    source_set = set(source_nodes)
-    source_augmented = [set(preds) for preds in direct]
-    for post, transitive_preds in enumerate(closure):
-        source_augmented[post].update(transitive_preds.intersection(source_set))
-
     cycle_nodes = tuple(v for v in range(n) if v in closure[v])
-    direct_edge_count = sum(map(len, direct))
-    source_augmented_edge_count = sum(map(len, source_augmented))
+    longest_distance: list[dict[int, int]] = [dict() for _ in range(n)]
+
+    if not cycle_nodes:
+        ready = [v for v, deg in enumerate(indegree) if deg == 0]
+        topo: list[int] = []
+        cursor = 0
+        while cursor < len(ready):
+            node = ready[cursor]
+            cursor += 1
+            topo.append(node)
+            for post in successors[node]:
+                indegree[post] -= 1
+                if indegree[post] == 0:
+                    ready.append(post)
+
+        for post in topo:
+            distances = longest_distance[post]
+            for pred in direct[post]:
+                distances[pred] = max(distances.get(pred, 0), 1)
+                for ancestor, distance in longest_distance[pred].items():
+                    distances[ancestor] = max(
+                        distances.get(ancestor, 0), distance + 1
+                    )
+
     return PrecedenceGraphInfo(
         direct_predecessors=direct,
         transitive_predecessors=closure,
-        source_augmented_predecessors=source_augmented,
+        longest_distance=longest_distance,
         successors=successors,
-        source_nodes=source_nodes,
         cycle_nodes=cycle_nodes,
-        direct_edge_count=direct_edge_count,
+        direct_edge_count=sum(map(len, direct)),
         transitive_edge_count=sum(map(len, closure)),
-        source_added_edge_count=(
-            source_augmented_edge_count - direct_edge_count
+        max_chain_distance=max(
+            (distance for row in longest_distance for distance in row.values()),
+            default=0,
         ),
-        source_augmented_edge_count=source_augmented_edge_count,
     )
 
 
@@ -401,7 +435,7 @@ def _session_slots(inst: B2BInstance, m: int) -> set[int]:
 
 
 def original_eligible_slots(inst: B2BInstance, m: int) -> set[int]:
-    """Unary domain from session, fixed meeting, and both participants' forbidden slots."""
+    """Unary domain from session, fixed meeting, and participant availability."""
 
     p1, p2, _ = inst.requested[m]
     slots = _session_slots(inst, m)
@@ -413,57 +447,359 @@ def original_eligible_slots(inst: B2BInstance, m: int) -> set[int]:
     return slots
 
 
-def reduce_domains_with_precedence(
-    inst: B2BInstance,
-    graph: PrecedenceGraphInfo,
-) -> tuple[list[list[int]], int, int]:
-    """Apply unary filtering and precedence arc consistency to schedule domains.
+def _has_full_slot_matching(
+    meetings: list[int],
+    domains: list[set[int]],
+    *,
+    fixed_meeting: int | None = None,
+    fixed_slot: int | None = None,
+) -> bool:
+    """Check participant all-different feasibility with one optional fixed edge."""
 
-    For each direct edge pred < post, repeatedly remove unsupported values from both
-    domains. This propagates earliest/latest bounds through complete precedence chains.
-    The transformation is satisfiability preserving.
-    """
+    if fixed_meeting is not None:
+        if fixed_slot is None or fixed_slot not in domains[fixed_meeting]:
+            return False
+        blocked = {fixed_slot}
+        remaining = [m for m in meetings if m != fixed_meeting]
+    else:
+        blocked = set()
+        remaining = list(meetings)
 
-    domains = [original_eligible_slots(inst, m) for m in range(inst.n_meetings)]
-    initial_count = sum(len(d) for d in domains)
+    remaining.sort(key=lambda m: len(domains[m] - blocked))
+    slot_owner: dict[int, int] = {}
 
-    # Any directed cycle of strict precedences makes the instance unsatisfiable.
-    if graph.cycle_nodes:
-        if graph.cycle_nodes:
-            domains[graph.cycle_nodes[0]].clear()
-        return [sorted(d) for d in domains], initial_count, sum(len(d) for d in domains)
+    def augment(meeting: int, seen: set[int]) -> bool:
+        for slot in sorted(domains[meeting]):
+            if slot in blocked or slot in seen:
+                continue
+            seen.add(slot)
+            owner = slot_owner.get(slot)
+            if owner is None or augment(owner, seen):
+                slot_owner[slot] = meeting
+                return True
+        return False
 
-    edges = [
-        (pred, post)
-        for post, preds in enumerate(graph.direct_predecessors)
-        for pred in preds
-    ]
+    return all(augment(meeting, set()) for meeting in remaining)
 
-    changed = True
-    while changed:
-        changed = False
-        for pred, post in edges:
+
+def _propagate_distance_precedences(
+    domains: list[set[int]],
+    distances_by_post: list[dict[int, int]],
+) -> bool:
+    """Apply precedence bounds consistency over the selected filtering graph."""
+
+    changed = False
+    for post, distances in enumerate(distances_by_post):
+        for pred, distance in distances.items():
             pred_domain = domains[pred]
             post_domain = domains[post]
             if not pred_domain or not post_domain:
                 continue
 
-            max_post = max(post_domain)
-            new_pred = {t for t in pred_domain if t < max_post}
+            latest_pred = max(post_domain) - distance
+            new_pred = {slot for slot in pred_domain if slot <= latest_pred}
             if new_pred != pred_domain:
                 domains[pred] = pred_domain = new_pred
                 changed = True
                 if not pred_domain:
                     continue
 
-            min_pred = min(pred_domain)
-            new_post = {t for t in post_domain if t > min_pred}
+            earliest_post = min(pred_domain) + distance
+            new_post = {slot for slot in post_domain if slot >= earliest_post}
             if new_post != post_domain:
                 domains[post] = new_post
                 changed = True
+    return changed
 
-    reduced_count = sum(len(d) for d in domains)
-    return [sorted(d) for d in domains], initial_count, reduced_count
+
+def _propagate_participant_matchings(
+    inst: B2BInstance,
+    domains: list[set[int]],
+) -> tuple[bool, bool]:
+    """Enforce GAC on every participant's all-different slot constraint.
+
+    Returns ``(changed, feasible)``. Candidate ``meeting@slot`` is removed when
+    fixing that edge prevents a full matching for the remaining meetings of the
+    participant. This preprocessing is exact and does not alter the solution set.
+    """
+
+    changed = False
+    for meetings in inst.meetings_by_business:
+        if len(meetings) <= 1:
+            continue
+        if any(not domains[m] for m in meetings):
+            return changed, False
+        if not _has_full_slot_matching(meetings, domains):
+            domains[meetings[0]].clear()
+            return True, False
+
+        for meeting in meetings:
+            if len(domains[meeting]) <= 1:
+                continue
+            for slot in tuple(sorted(domains[meeting])):
+                if not _has_full_slot_matching(
+                    meetings,
+                    domains,
+                    fixed_meeting=meeting,
+                    fixed_slot=slot,
+                ):
+                    domains[meeting].remove(slot)
+                    changed = True
+                    if not domains[meeting]:
+                        return changed, False
+    return changed, True
+
+
+def _propagate_saturated_table_slots(
+    inst: B2BInstance,
+    domains: list[set[int]],
+) -> tuple[bool, bool]:
+    """Propagate slots already saturated by fixed/singleton meetings."""
+
+    changed = False
+    for slot in range(inst.n_total_slots):
+        forced = [m for m, domain in enumerate(domains) if domain == {slot}]
+        if len(forced) > inst.n_tables:
+            domains[forced[0]].clear()
+            return True, False
+        if len(forced) != inst.n_tables:
+            continue
+        for meeting, domain in enumerate(domains):
+            if len(domain) > 1 and slot in domain:
+                domain.remove(slot)
+                changed = True
+                if not domain:
+                    return changed, False
+    return changed, True
+
+
+def reduce_domains_with_precedence(
+    inst: B2BInstance,
+    graph: PrecedenceGraphInfo,
+    domain_filter_graph: DomainFilterGraph = "distance_closure",
+) -> tuple[list[list[int]], int, int]:
+    """Run exact preprocessing to a fixpoint.
+
+    The fixpoint combines unary restrictions, precedence propagation over either
+    direct E or distance-labelled E*, participant all-different matching GAC, and
+    saturated table-slot propagation.
+    """
+
+    if domain_filter_graph not in VALID_DOMAIN_FILTER_GRAPHS:
+        raise ValueError(
+            f"Unknown domain_filter_graph={domain_filter_graph!r}"
+        )
+    domains = [original_eligible_slots(inst, m) for m in range(inst.n_meetings)]
+    initial_count = sum(len(domain) for domain in domains)
+
+    if graph.cycle_nodes:
+        domains[graph.cycle_nodes[0]].clear()
+        return [sorted(domain) for domain in domains], initial_count, sum(map(len, domains))
+
+    if domain_filter_graph == "direct":
+        effective_distances = [
+            {pred: 1 for pred in predecessors}
+            for predecessors in graph.direct_predecessors
+        ]
+    else:
+        effective_distances = graph.longest_distance
+
+    changed = True
+    while changed:
+        changed = _propagate_distance_precedences(
+            domains,
+            effective_distances,
+        )
+        matching_changed, feasible = _propagate_participant_matchings(inst, domains)
+        changed = changed or matching_changed
+        if not feasible:
+            break
+        capacity_changed, feasible = _propagate_saturated_table_slots(inst, domains)
+        changed = changed or capacity_changed
+        if not feasible:
+            break
+
+    reduced_count = sum(len(domain) for domain in domains)
+    return [sorted(domain) for domain in domains], initial_count, reduced_count
+
+
+def objective_participants(inst: B2BInstance) -> tuple[int, ...]:
+    """Return P* = {p: participant p attends at least two meetings}."""
+
+    return tuple(
+        participant
+        for participant, meetings in enumerate(inst.meetings_by_business)
+        if len(meetings) >= 2
+    )
+
+
+def compute_solution_stats(
+    inst: B2BInstance,
+    assignment: list[int],
+    *,
+    participants: tuple[int, ...] | None = None,
+) -> B2BSolutionStats:
+    """Compute IdleRange(P*) statistics independently of any solver model."""
+
+    selected_participants = (
+        objective_participants(inst) if participants is None else participants
+    )
+    meetings_per_slot: list[list[int]] = [
+        [] for _ in range(inst.n_total_slots)
+    ]
+    for meeting, slot in enumerate(assignment):
+        if 0 <= slot < inst.n_total_slots:
+            meetings_per_slot[slot].append(meeting)
+
+    participant_idle = [0] * inst.n_business
+    for participant, meetings in enumerate(inst.meetings_by_business):
+        slots = sorted(
+            assignment[meeting]
+            for meeting in meetings
+            if 0 <= meeting < len(assignment) and assignment[meeting] >= 0
+        )
+        if len(slots) >= 2:
+            participant_idle[participant] = (
+                slots[-1] - slots[0] + 1 - len(slots)
+            )
+
+    objective_values = [
+        participant_idle[participant]
+        for participant in selected_participants
+    ]
+    objective_gap = (
+        max(objective_values) - min(objective_values)
+        if len(objective_values) >= 2
+        else 0
+    )
+    all_participant_gap = (
+        max(participant_idle) - min(participant_idle)
+        if len(participant_idle) >= 2
+        else 0
+    )
+    return B2BSolutionStats(
+        total_breaks=sum(participant_idle),
+        participant_breaks=participant_idle,
+        objective_gap=objective_gap,
+        all_participant_idle_range=all_participant_gap,
+        objective_participants=selected_participants,
+        meetings_per_slot=meetings_per_slot,
+        busy_participants_per_slot=[
+            2 * len(meetings) for meetings in meetings_per_slot
+        ],
+    )
+
+
+def validate_schedule_assignment(
+    inst: B2BInstance,
+    assignment: list[int],
+    *,
+    graph: PrecedenceGraphInfo | None = None,
+) -> list[str]:
+    """Check a schedule against the original hard B2B semantics."""
+
+    errors: list[str] = []
+    if len(assignment) != inst.n_meetings:
+        return ["assignment length does not match nMeetings"]
+
+    for meeting, slot in enumerate(assignment):
+        if slot not in original_eligible_slots(inst, meeting):
+            errors.append(
+                f"meeting {meeting + 1} assigned to an ineligible slot "
+                f"{slot + 1 if slot >= 0 else slot}"
+            )
+
+    for participant, meetings in enumerate(inst.meetings_by_business):
+        seen: dict[int, int] = {}
+        for meeting in meetings:
+            slot = assignment[meeting]
+            if slot in seen:
+                errors.append(
+                    f"participant {participant + 1} collision at slot {slot + 1}: "
+                    f"meetings {seen[slot] + 1} and {meeting + 1}"
+                )
+            seen[slot] = meeting
+
+    for slot in range(inst.n_total_slots):
+        count = sum(assigned == slot for assigned in assignment)
+        if count > inst.n_tables:
+            errors.append(
+                f"capacity exceeded at slot {slot + 1}: "
+                f"{count}>{inst.n_tables}"
+            )
+
+    precedence_graph = graph or build_precedence_graph(inst.precedences)
+    for post, preds in enumerate(precedence_graph.direct_predecessors):
+        for pred in preds:
+            if assignment[pred] >= assignment[post]:
+                errors.append(
+                    f"precedence violation: meeting {pred + 1} "
+                    f"!< meeting {post + 1}"
+                )
+    return errors
+
+
+def resolve_precedence_configuration(
+    precedence_mode: str | None,
+    precedence_encoding: str | None,
+    precedence_graph: str | None,
+    *,
+    default_mode: PrecedenceMode,
+) -> tuple[str, str, str]:
+    """Resolve independent P/G flags and the deprecated composite mode.
+
+    A caller must either provide both independent flags or neither. The legacy
+    modes remain accepted for API compatibility, but conflicting legacy and
+    independent values are rejected instead of being silently overridden.
+    """
+
+    if precedence_mode is not None:
+        if precedence_mode not in VALID_PRECEDENCE_MODES:
+            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
+        legacy_encoding, legacy_graph = LEGACY_PRECEDENCE_CONFIGURATIONS[
+            precedence_mode
+        ]
+        if (
+            precedence_encoding is not None
+            and precedence_encoding != legacy_encoding
+        ):
+            raise ValueError(
+                "precedence_mode conflicts with precedence_encoding: "
+                f"{precedence_mode!r} requires {legacy_encoding!r}"
+            )
+        if precedence_graph is not None and precedence_graph != legacy_graph:
+            raise ValueError(
+                "precedence_mode conflicts with precedence_graph: "
+                f"{precedence_mode!r} requires {legacy_graph!r}"
+            )
+        precedence_encoding = legacy_encoding
+        precedence_graph = legacy_graph
+    elif precedence_encoding is None and precedence_graph is None:
+        precedence_mode = default_mode
+        precedence_encoding, precedence_graph = (
+            LEGACY_PRECEDENCE_CONFIGURATIONS[default_mode]
+        )
+    elif precedence_encoding is None or precedence_graph is None:
+        raise ValueError(
+            "precedence_encoding and precedence_graph must be specified together"
+        )
+
+    if precedence_encoding not in VALID_PRECEDENCE_ENCODINGS:
+        raise ValueError(
+            f"Unknown precedence_encoding={precedence_encoding!r}"
+        )
+    if precedence_graph not in VALID_PRECEDENCE_GRAPHS:
+        raise ValueError(f"Unknown precedence_graph={precedence_graph!r}")
+
+    legacy_mode = next(
+        (
+            mode
+            for mode, configuration in LEGACY_PRECEDENCE_CONFIGURATIONS.items()
+            if configuration == (precedence_encoding, precedence_graph)
+        ),
+        "factorial",
+    )
+    return precedence_encoding, precedence_graph, legacy_mode
 
 
 # ---------------------------------------------------------------------------
@@ -472,106 +808,176 @@ def reduce_domains_with_precedence(
 
 
 class B2BSATModel:
-    """Combined B2B encoder with precedence-graph and variable-domain reduction.
+    """Optimized exact encoder for the max/min internal-idle-slot gap over P*.
 
-    Variants follow the paper:
-      basic  : equations (19)-(42)
-      imp1   : basic + (43)
-      imp2   : basic + (44)
-      imp12  : basic + (43) + (44)
-      imp12+ : imp12 + (45) and clustered capacity (46)-(47)
+    The only optimization objective is
 
-    Unary restrictions (sessions, fixed meetings, forbidden slots) and graph-derived
-    earliest/latest bounds are compiled into variable domains. No schedule variable is
-    created for a removed meeting-slot pair.
-
-    Objective in this branch:
         minimize max_{p in P*} B(p) - min_{p in P*} B(p),
-    where B(p) is the total number of idle time slots strictly between the first
-    and last meetings of participant p and P* contains exactly the participants
-    with at least two meetings. Equivalently, if the ordered meeting slots are
-    t_1 < ... < t_k, then B(p) = sum_i (t_{i+1} - t_i - 1).
-    The optional ``lexicographic`` mode first proves this range optimum and then
-    minimizes sum_p B(p) without relaxing the primary optimum.
-    ``fairness_limit`` is only an optional hard upper bound on that gap.
+
+    where ``B(p)`` is the total number of empty slots strictly between the first
+    and last meetings of participant ``p``, and
+    ``P* = {p : |M_p| >= 2}``. Participants outside P* always have B(p)=0 and
+    are excluded from the range. No hard upper bound on this gap is generated.
+
+    The key identity used by the objective encoding is
+
+        B(p) = last_slot(p) - first_slot(p) + 1 - |M_p|.
+
+    This replaces per-idle-slot variables and quadratic sorting networks with a
+    linear prefix/suffix span encoding and exact unary threshold literals.
+
+    ``precedence_encoding`` (P) and ``precedence_graph`` (G) are independent:
+    either encoding can consume either the direct distance-one relations or the
+    distance-labelled transitive closure. ``domain_filter_graph`` (F) independently
+    selects direct E or distance-labelled E* for the exact domain-reduction
+    fixpoint, while the encoded precedence graph remains unchanged.
+
+    ``domain_mode="full"`` creates the complete meeting-slot Cartesian product
+    and encodes unary input restrictions as hard clauses. ``"reduced"`` omits
+    variables removed by the exact preprocessing fixpoint. Every other encoding
+    component follows the same code path in both modes.
     """
 
     def __init__(
         self,
         inst: B2BInstance,
-        fairness_limit: int | None = None,
-        precedence_mode: PrecedenceMode = "staircase",
+        precedence_mode: PrecedenceMode | None = None,
         encoding_variant: EncodingVariant = "imp12+",
-        objective_mode: ObjectiveMode = "idle-range",
-        precedence_edge_mode: PrecedenceEdgeMode = "direct",
+        domain_mode: DomainMode = "reduced",
+        *,
+        precedence_encoding: PrecedenceEncoding | None = None,
+        precedence_graph: PrecedenceGraph | None = None,
+        domain_filter_graph: DomainFilterGraph = "distance_closure",
     ) -> None:
-        if precedence_mode not in VALID_PRECEDENCE_MODES:
-            raise ValueError(f"Unknown precedence_mode={precedence_mode!r}")
-        if precedence_edge_mode not in VALID_PRECEDENCE_EDGE_MODES:
-            raise ValueError(
-                f"Unknown precedence_edge_mode={precedence_edge_mode!r}"
-            )
         if encoding_variant not in VALID_ENCODING_VARIANTS:
             raise ValueError(f"Unknown encoding_variant={encoding_variant!r}")
-        if objective_mode not in VALID_OBJECTIVE_MODES:
-            raise ValueError(f"Unknown objective_mode={objective_mode!r}")
-        if fairness_limit is not None and fairness_limit < 0:
-            raise ValueError("fairness_limit must be non-negative or None")
+        if domain_mode not in VALID_DOMAIN_MODES:
+            raise ValueError(f"Unknown domain_mode={domain_mode!r}")
+        if domain_filter_graph not in VALID_DOMAIN_FILTER_GRAPHS:
+            raise ValueError(
+                f"Unknown domain_filter_graph={domain_filter_graph!r}"
+            )
+
+        (
+            resolved_precedence_encoding,
+            resolved_precedence_graph,
+            resolved_precedence_mode,
+        ) = resolve_precedence_configuration(
+            precedence_mode,
+            precedence_encoding,
+            precedence_graph,
+            default_mode="staircase",
+        )
 
         self.inst = inst
-        self.fairness_limit = fairness_limit
-        self.precedence_mode = precedence_mode
-        self.precedence_edge_mode = precedence_edge_mode
+        self.precedence_mode = resolved_precedence_mode
+        self.precedence_encoding = resolved_precedence_encoding
+        self.precedence_graph = resolved_precedence_graph
+        self.precedence_configuration = (
+            f"{self.precedence_encoding}+{self.precedence_graph}"
+        )
         self.encoding_variant = encoding_variant
-        self.objective_mode = objective_mode
+        self.domain_mode = domain_mode
+        self.domain_filter_graph = domain_filter_graph
         self.objective_participants = tuple(
-            p
-            for p, meeting_count in enumerate(inst.n_meetings_business)
+            participant
+            for participant, meeting_count in enumerate(inst.n_meetings_business)
             if meeting_count >= 2
         )
         self.graph = build_precedence_graph(inst.precedences)
+        if self.precedence_graph == "direct":
+            self._precedence_distances = [
+                {pred: 1 for pred in predecessors}
+                for predecessors in self.graph.direct_predecessors
+            ]
+        else:
+            self._precedence_distances = [
+                dict(distances) for distances in self.graph.longest_distance
+            ]
+        self._unary_eligible_slots = [
+            sorted(original_eligible_slots(inst, meeting))
+            for meeting in range(inst.n_meetings)
+        ]
         (
-            self._eligible_slots,
-            self.initial_schedule_candidates,
+            self._reduced_slots,
+            reduction_initial_count,
             self.reduced_schedule_candidates,
-        ) = reduce_domains_with_precedence(inst, self.graph)
-        self.precedence_predecessors = (
-            self.graph.direct_predecessors
-            if precedence_edge_mode == "direct"
-            else self.graph.source_augmented_predecessors
+        ) = reduce_domains_with_precedence(
+            inst,
+            self.graph,
+            domain_filter_graph=self.domain_filter_graph,
+        )
+        self.full_schedule_candidates = inst.n_meetings * inst.n_total_slots
+        self.unary_eligible_schedule_candidates = sum(
+            len(slots) for slots in self._unary_eligible_slots
+        )
+        if reduction_initial_count != self.unary_eligible_schedule_candidates:
+            raise AssertionError("domain-reduction input disagrees with unary domains")
+
+        # Backward-compatible name: historically this field counted candidates
+        # after session/fixed/forbidden filtering, before exact propagation.
+        self.initial_schedule_candidates = self.unary_eligible_schedule_candidates
+        if domain_mode == "full":
+            all_slots = list(range(inst.n_total_slots))
+            self._eligible_slots = [list(all_slots) for _ in range(inst.n_meetings)]
+        else:
+            self._eligible_slots = [list(slots) for slots in self._reduced_slots]
+        self.active_schedule_candidates = sum(
+            len(slots) for slots in self._eligible_slots
         )
 
         self.vpool = IDPool()
         self.enabled_constraints: list[str] = []
         self._clusters: list[list[int]] | None = None
         self._artifacts: B2BModelArtifacts | None = None
+        self._precedence_sparse_suffixes: dict[int, dict[int, int]] = {}
+        self._precedence_pairwise_clauses = 0
+        self._precedence_sparse_link_clauses = 0
+        self._precedence_unique_suffix_cuts = 0
 
         self._schedule_vars: dict[tuple[int, int], int] = {}
-        for m, slots in enumerate(self._eligible_slots):
-            for t in slots:
-                self._schedule_vars[m, t] = self.vpool.id(("schedule", m, t))
+        for meeting, slots in enumerate(self._eligible_slots):
+            for slot in slots:
+                self._schedule_vars[meeting, slot] = self.vpool.id(
+                    ("schedule", meeting, slot)
+                )
 
         self._used_vars: dict[tuple[int, int], int] = {}
-        for p, meetings in enumerate(inst.meetings_by_business):
+        for participant, meetings in enumerate(inst.meetings_by_business):
             possible_slots = {
-                t
-                for m in meetings
-                for t in self._eligible_slots[m]
+                slot
+                for meeting in meetings
+                for slot in self._eligible_slots[meeting]
             }
-            for t in sorted(possible_slots):
-                self._used_vars[p, t] = self.vpool.id(("usedSlot", p, t))
+            for slot in sorted(possible_slots):
+                self._used_vars[participant, slot] = self.vpool.id(
+                    ("usedSlot", participant, slot)
+                )
 
     # Public variable/domain helpers -----------------------------------
 
     def eligible_slots(self, m: int) -> list[int]:
+        """Return slots for which schedule variables exist in the active mode."""
+
         return list(self._eligible_slots[m])
 
+    def unary_eligible_slots(self, m: int) -> list[int]:
+        """Return slots satisfying session, fixed, and forbidden restrictions."""
+
+        return list(self._unary_eligible_slots[m])
+
+    def reduced_slots(self, m: int) -> list[int]:
+        """Return the exact preprocessing fixpoint independently of active mode."""
+
+        return list(self._reduced_slots[m])
+
     def x(self, m: int, t: int) -> int:
-        """Return an existing schedule variable; removed pairs intentionally have none."""
         try:
             return self._schedule_vars[m, t]
         except KeyError as exc:
-            raise KeyError(f"schedule({m},{t}) was removed by domain reduction") from exc
+            raise KeyError(
+                f"schedule({m},{t}) does not exist in {self.domain_mode} mode"
+            ) from exc
 
     def x_or_none(self, m: int, t: int) -> int | None:
         return self._schedule_vars.get((m, t))
@@ -579,20 +985,34 @@ class B2BSATModel:
     def used_or_none(self, p: int, t: int) -> int | None:
         return self._used_vars.get((p, t))
 
+    def prefix_used(self, p: int, t: int) -> int:
+        return self.vpool.id(("prefixUsed", p, t))
+
+    def suffix_used(self, p: int, t: int) -> int:
+        return self.vpool.id(("suffixUsed", p, t))
+
+    def first_used(self, p: int, t: int) -> int:
+        return self.vpool.id(("firstUsed", p, t))
+
+    def break_threshold(self, p: int, k: int) -> int:
+        return self.vpool.id(("breakSlotsAtLeast", p, k))
+
+    # Backward-compatible accessors.
     def meeting_before(self, p: int, t: int) -> int:
-        """True iff participant p has a meeting in some slot strictly before t."""
-        return self.vpool.id(("meetingBefore", p, t))
+        if t <= 0:
+            raise IndexError("there is no slot strictly before slot 0")
+        return self.prefix_used(p, t - 1)
 
     def meeting_after(self, p: int, t: int) -> int:
-        """True iff participant p has a meeting in some slot strictly after t."""
-        return self.vpool.id(("meetingAfter", p, t))
+        if t >= self.inst.n_total_slots - 1:
+            raise IndexError("there is no slot strictly after the final slot")
+        return self.suffix_used(p, t + 1)
 
     def hole(self, p: int, t: int) -> int:
-        """Backward-compatible accessor for the new per-idle-slot variable."""
-        return self.vpool.id(("breakSlot", p, t))
+        return self.vpool.id(("legacyBreakSlot", p, t))
 
     def sorted_hole(self, p: int, k: int) -> int:
-        return self.vpool.id(("sortedBreakSlot", p, k))
+        return self.break_threshold(p, k)
 
     def max_break(self, k: int) -> int:
         return self.vpool.id(("maxBreakSlots", k))
@@ -623,7 +1043,7 @@ class B2BSATModel:
     @staticmethod
     def _add_pairwise_atmost_one(cnf: CNF, lits: list[int]) -> None:
         for i, left in enumerate(lits):
-            for right in lits[i + 1 :]:
+            for right in lits[i + 1:]:
                 cnf.append([-left, -right])
 
     def _add_exactly_one_commander(
@@ -645,7 +1065,7 @@ class B2BSATModel:
 
         commanders: list[int] = []
         for start in range(0, len(lits), group_size):
-            group = lits[start : start + group_size]
+            group = lits[start:start + group_size]
             commander = self.vpool.id(("commander", tuple(group)))
             commanders.append(commander)
             self._add_pairwise_atmost_one(cnf, group)
@@ -660,13 +1080,13 @@ class B2BSATModel:
         elif bound == 0:
             cnf.extend([[-lit] for lit in lits])
         elif bound < len(lits):
-            enc = CardEnc.atmost(
+            encoding = CardEnc.atmost(
                 lits=lits,
                 bound=bound,
                 vpool=self.vpool,
                 encoding=EncType.seqcounter,
             )
-            cnf.extend(enc.clauses)
+            cnf.extend(encoding.clauses)
 
     def _add_exactly_cardnet(self, cnf: CNF, lits: list[int], bound: int) -> None:
         if bound < 0 or bound > len(lits):
@@ -676,13 +1096,13 @@ class B2BSATModel:
         elif bound == len(lits):
             cnf.extend([[lit] for lit in lits])
         else:
-            enc = CardEnc.equals(
+            encoding = CardEnc.equals(
                 lits=lits,
                 bound=bound,
                 vpool=self.vpool,
                 encoding=EncType.cardnetwrk,
             )
-            cnf.extend(enc.clauses)
+            cnf.extend(encoding.clauses)
 
     def _add_atmost_cardnet(self, cnf: CNF, lits: list[int], bound: int) -> None:
         if bound < 0:
@@ -690,13 +1110,13 @@ class B2BSATModel:
         elif bound == 0:
             cnf.extend([[-lit] for lit in lits])
         elif bound < len(lits):
-            enc = CardEnc.atmost(
+            encoding = CardEnc.atmost(
                 lits=lits,
                 bound=bound,
                 vpool=self.vpool,
                 encoding=EncType.cardnetwrk,
             )
-            cnf.extend(enc.clauses)
+            cnf.extend(encoding.clauses)
 
     # Build entry points ------------------------------------------------
 
@@ -705,78 +1125,111 @@ class B2BSATModel:
             return self._artifacts
 
         cnf = CNF()
+        filter_label = (
+            "direct E"
+            if self.domain_filter_graph == "direct"
+            else "distance-labelled E*"
+        )
         self.enabled_constraints = [
-            "domain reduction: sessions, fixed meetings, forbidden slots",
-            "precedence domain propagation: fixed point over direct edges",
-            "full precedence closure: cycle detection and graph statistics only",
+            "objective-only optimization: no hard upper bound on objective gap",
+            f"F-selected {filter_label} domain propagation and cycle detection",
+            "precedence configuration: "
+            f"F={self.domain_filter_graph}, "
+            f"P={self.precedence_encoding}, G={self.precedence_graph}",
         ]
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "Full Domain MxT schedule variables + explicit unary exclusions"
+            )
+        else:
+            self.enabled_constraints.append(
+                "Reduced Domain variables after unary filtering + matching GAC + "
+                "slot saturation"
+            )
 
         if self.graph.cycle_nodes:
             cnf.append([])
             self.enabled_constraints.append("strict precedence cycle -> UNSAT")
 
-        self._add_assignment(cnf)                    # (20), (22)-(27) through domains
-        self._add_participant_collision(cnf)         # (19)
+        self._add_assignment(cnf)
+        self._add_participant_collision(cnf)
         if self.use_further_improvements:
-            self._add_cluster_capacity(cnf)          # (46), (47), replaces (21)
+            self._add_cluster_capacity(cnf)
         else:
-            self._add_capacity_over_meetings(cnf)    # (21)
-        self._add_precedences(cnf)                   # (28)
+            self._add_capacity_over_meetings(cnf)
+        self._add_precedences(cnf)
 
-        hole_lits = self._add_break_tracking(cnf)    # usedSlot + per-idle-slot cost
-        sorted_lits, gap_lits = self._add_break_slot_gap_objective(
-            cnf,
-            hole_lits,
-            fairness_cap=self.fairness_limit,
-        )
-        # The number of true gap literals is exactly the range of B(p) over P*,
-        # where P* contains participants with at least two meetings.
-        objective_lits = gap_lits
-        secondary_objective_lits = [
-            lit
-            for participant_lits in hole_lits
-            for lit in participant_lits
-        ]
-        objective_name = (
-            "internal_idle_slot_range_pstar"
-            if self.objective_mode == "idle-range"
-            else "lexicographic_internal_idle_range_pstar_then_idle_sum"
-        )
+        threshold_lits = self._add_span_break_thresholds(cnf)
+        gap_lits = self._add_gap_objective(cnf, threshold_lits)
+
+        n_vars = max(self.vpool.top, cnf.nv)
+        n_primary_variables = len(self._schedule_vars)
+        clause_lengths = [len(clause) for clause in cnf.clauses]
 
         self._artifacts = B2BModelArtifacts(
             cnf=cnf,
-            objective_lits=objective_lits,
-            secondary_objective_lits=secondary_objective_lits,
-            objective_name=objective_name,
-            objective_mode=self.objective_mode,
+            objective_lits=gap_lits,
+            objective_name="internal_idle_slot_range_pstar",
             objective_participants=self.objective_participants,
-            fairness_limit=self.fairness_limit,
-            fairness_gap_lits=gap_lits,
-            hole_lits_by_participant=hole_lits,
-            sorted_hole_lits_by_participant=sorted_lits,
-            n_vars=max(self.vpool.top, cnf.nv),
+            objective_gap_lits=gap_lits,
+            hole_lits_by_participant=[[] for _ in range(self.inst.n_business)],
+            sorted_hole_lits_by_participant=threshold_lits,
+            n_vars=n_vars,
             n_clauses=len(cnf.clauses),
+            n_primary_variables=n_primary_variables,
+            n_auxiliary_variables=n_vars - n_primary_variables,
+            n_hard_literals=sum(clause_lengths),
+            max_hard_clause_length=max(clause_lengths, default=0),
+            n_unit_hard_clauses=sum(length == 1 for length in clause_lengths),
+            n_binary_hard_clauses=sum(length == 2 for length in clause_lengths),
+            n_ternary_hard_clauses=sum(length == 3 for length in clause_lengths),
+            n_long_hard_clauses=sum(length >= 4 for length in clause_lengths),
             encoding_variant=self.encoding_variant,
             precedence_mode=self.precedence_mode,
-            precedence_edge_mode=self.precedence_edge_mode,
+            precedence_encoding=self.precedence_encoding,
+            precedence_graph=self.precedence_graph,
+            precedence_configuration=self.precedence_configuration,
+            domain_mode=self.domain_mode,
+            domain_filter_graph=self.domain_filter_graph,
             enabled_constraints=list(self.enabled_constraints),
+            full_schedule_candidates=self.full_schedule_candidates,
+            unary_eligible_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+            ),
             initial_schedule_candidates=self.initial_schedule_candidates,
             reduced_schedule_candidates=self.reduced_schedule_candidates,
+            active_schedule_candidates=self.active_schedule_candidates,
+            unary_removed_schedule_candidates=(
+                self.full_schedule_candidates
+                - self.unary_eligible_schedule_candidates
+            ),
+            preprocessing_removed_schedule_candidates=(
+                self.unary_eligible_schedule_candidates
+                - self.reduced_schedule_candidates
+            ),
             removed_schedule_candidates=(
                 self.initial_schedule_candidates - self.reduced_schedule_candidates
             ),
             precedence_direct_edges=self.graph.direct_edge_count,
             precedence_transitive_edges=self.graph.transitive_edge_count,
-            precedence_source_added_edges=self.graph.source_added_edge_count,
-            precedence_encoded_edges=sum(
-                map(len, self.precedence_predecessors)
-            ),
             precedence_cycle_nodes=self.graph.cycle_nodes,
+            precedence_max_distance=self.graph.max_chain_distance,
+            precedence_relation_edges=sum(
+                len(distances) for distances in self._precedence_distances
+            ),
+            precedence_pairwise_clauses=self._precedence_pairwise_clauses,
+            precedence_sparse_link_clauses=(
+                self._precedence_sparse_link_clauses
+            ),
+            precedence_unique_suffix_cuts=(
+                self._precedence_unique_suffix_cuts
+            ),
+            objective_encoding="linear first/last span with exact unary thresholds",
         )
         return self._artifacts
 
     def build_wcnf(self) -> WCNF:
-        """Build phase-1 MaxSAT minimizing the internal-idle range over P*."""
+        """Build partial MaxSAT minimizing only the idle-slot range over P*."""
 
         artifacts = self.build_base_cnf()
         wcnf = WCNF()
@@ -789,29 +1242,45 @@ class B2BSATModel:
     # Feasibility -------------------------------------------------------
 
     def _add_assignment(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(20),(22)-(27) exactly once over reduced domains")
-        for m, slots in enumerate(self._eligible_slots):
-            self._add_exactly_one_commander(cnf, [self.x(m, t) for t in slots])
+        self.enabled_constraints.append(
+            f"(20),(22)-(27) exactly once over {self.domain_mode} domains"
+        )
+        for meeting, slots in enumerate(self._eligible_slots):
+            self._add_exactly_one_commander(
+                cnf, [self.x(meeting, slot) for slot in slots]
+            )
+
+        if self.domain_mode == "full":
+            self.enabled_constraints.append(
+                "(22)-(27) session/fixed/forbidden exclusions as hard unit clauses"
+            )
+            for meeting, unary_slots in enumerate(self._unary_eligible_slots):
+                allowed = set(unary_slots)
+                for slot in range(self.inst.n_total_slots):
+                    if slot not in allowed:
+                        cnf.append([-self.x(meeting, slot)])
 
     def _add_participant_collision(self, cnf: CNF) -> None:
         self.enabled_constraints.append("(19) participant atMost-one per slot")
-        for p, meetings in enumerate(self.inst.meetings_by_business):
-            for t in range(self.inst.n_total_slots):
+        for meetings in self.inst.meetings_by_business:
+            for slot in range(self.inst.n_total_slots):
                 lits = [
                     lit
-                    for m in meetings
-                    if (lit := self.x_or_none(m, t)) is not None
+                    for meeting in meetings
+                    if (lit := self.x_or_none(meeting, slot)) is not None
                 ]
                 if len(lits) > 1:
                     self._add_pairwise_atmost_one(cnf, lits)
 
     def _add_capacity_over_meetings(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(21) capacity over reduced schedule variables")
-        for t in range(self.inst.n_total_slots):
+        self.enabled_constraints.append(
+            f"(21) capacity over {self.domain_mode} schedule variables"
+        )
+        for slot in range(self.inst.n_total_slots):
             lits = [
                 lit
-                for m in range(self.inst.n_meetings)
-                if (lit := self.x_or_none(m, t)) is not None
+                for meeting in range(self.inst.n_meetings)
+                if (lit := self.x_or_none(meeting, slot)) is not None
             ]
             self._add_atmost_seqcounter(cnf, lits, self.inst.n_tables)
 
@@ -831,21 +1300,22 @@ class B2BSATModel:
                 best = [min(unassigned)]
             clusters.append(best)
             unassigned.difference_update(best)
-
         self._clusters = clusters
         return clusters
 
     def _add_cluster_capacity(self, cnf: CNF) -> None:
-        self.enabled_constraints.append("(46),(47) clustered table capacity with full channeling")
+        self.enabled_constraints.append(
+            "(46),(47) clustered table capacity with compact forward channeling"
+        )
         clusters = self._compute_meeting_clusters()
 
-        for t in range(self.inst.n_total_slots):
+        for slot in range(self.inst.n_total_slots):
             active_clusters: list[int] = []
-            for c, meetings in enumerate(clusters):
+            for cluster, meetings in enumerate(clusters):
                 member_lits = [
                     lit
-                    for m in meetings
-                    if (lit := self.x_or_none(m, t)) is not None
+                    for meeting in meetings
+                    if (lit := self.x_or_none(meeting, slot)) is not None
                 ]
                 if not member_lits:
                     continue
@@ -853,151 +1323,278 @@ class B2BSATModel:
                     active_clusters.append(member_lits[0])
                     continue
 
-                cluster_lit = self.cluster_active(c, t)
+                cluster_lit = self.cluster_active(cluster, slot)
                 active_clusters.append(cluster_lit)
                 for lit in member_lits:
                     cnf.append([-lit, cluster_lit])
-                cnf.append([-cluster_lit] + member_lits)
+                # The reverse long clause is intentionally omitted. Forward
+                # channeling is sufficient for an at-most capacity constraint.
 
             self._add_atmost_seqcounter(cnf, active_clusters, self.inst.n_tables)
 
     # Precedence --------------------------------------------------------
 
-    def _add_precedences(self, cnf: CNF) -> None:
-        edge_description = (
-            "direct E"
-            if self.precedence_edge_mode == "direct"
-            else "source-augmented E_R"
-        )
-        if self.precedence_mode == "traditional":
-            self.enabled_constraints.append(
-                f"(28) traditional pairwise precedence over {edge_description}"
-            )
-            for post, preds in enumerate(self.precedence_predecessors):
-                for pred in preds:
-                    for pred_t in self._eligible_slots[pred]:
-                        pred_lit = self.x(pred, pred_t)
-                        for post_t in self._eligible_slots[post]:
-                            if pred_t >= post_t:
-                                cnf.append([-pred_lit, -self.x(post, post_t)])
-        else:
-            self.enabled_constraints.append(
-                "(28) staircase/support precedence over reduced domains "
-                f"and {edge_description}"
-            )
-            for post, preds in enumerate(self.precedence_predecessors):
-                for pred in preds:
-                    pred_slots = self._eligible_slots[pred]
-                    for post_t in self._eligible_slots[post]:
-                        support = [self.x(pred, pred_t) for pred_t in pred_slots if pred_t < post_t]
-                        cnf.append([-self.x(post, post_t)] + support)
+    def _build_sparse_precedence_suffixes(
+        self,
+        cnf: CNF,
+        meeting: int,
+        cuts: set[int],
+    ) -> dict[int, int]:
+        """Build exact suffix ORs only at cuts queried by the selected graph."""
 
-    # Break semantics and implied constraints --------------------------
+        cached = self._precedence_sparse_suffixes.get(meeting)
+        if cached is not None:
+            return cached
 
-    def _add_break_tracking(self, cnf: CNF) -> list[list[int]]:
-        """Create one cost literal for every internal idle time slot.
+        slots = self._eligible_slots[meeting]
+        valid_cuts = sorted({cut for cut in cuts if 0 <= cut < len(slots)})
+        suffixes: dict[int, int] = {}
+        next_cut = len(slots)
+        next_lit: int | None = None
 
-        For participant p and slot t, ``breakSlot[p,t]`` is true exactly when:
-          * p has at least one meeting before t,
-          * p has no meeting at t, and
-          * p has at least one meeting after t.
+        for cut in reversed(valid_cuts):
+            segment = [self.x(meeting, slots[i]) for i in range(cut, next_cut)]
+            if next_lit is None and len(segment) == 1:
+                here = segment[0]
+            else:
+                here = self.vpool.id(("precedenceSparseSuffix", meeting, cut))
+                for lit in segment:
+                    cnf.append([-lit, here])
+                if next_lit is not None:
+                    cnf.append([-next_lit, here])
+                reverse = [-here] + segment
+                if next_lit is not None:
+                    reverse.append(next_lit)
+                cnf.append(reverse)
+            suffixes[cut] = here
+            next_cut = cut
+            next_lit = here
 
-        Thus a contiguous idle interval of length q contributes q true literals.
-        For example, break lengths [1, 1, 2, 1] contribute 5, not 4.
-        """
+        self._precedence_sparse_suffixes[meeting] = suffixes
+        return suffixes
+
+    def _add_sparse_suffix_precedences(self, cnf: CNF) -> None:
         self.enabled_constraints.append(
-            "usedSlot channeling + exact per-idle-slot break cost"
+            "(28) SparseSuffix precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
         )
-        break_slot_lits_by_participant: list[list[int]] = []
 
-        for p, meetings in enumerate(self.inst.meetings_by_business):
-            # Channel schedule variables to participant-used-slot variables.
-            for t in range(self.inst.n_total_slots):
-                used = self.used_or_none(p, t)
+        links: list[tuple[int, int, int]] = []
+        cuts_by_pred: dict[int, set[int]] = {}
+
+        for post, distances in enumerate(self._precedence_distances):
+            post_slots = self._eligible_slots[post]
+            for pred, distance in sorted(distances.items()):
+                pred_slots = self._eligible_slots[pred]
+                if not pred_slots or not post_slots:
+                    continue
+
+                for post_slot in post_slots:
+                    # pred + distance <= post_slot, hence pred <= post_slot-distance.
+                    split = bisect_right(pred_slots, post_slot - distance)
+                    post_lit = self.x(post, post_slot)
+                    if split == 0:
+                        cnf.append([-post_lit])
+                        self._precedence_sparse_link_clauses += 1
+                    elif split < len(pred_slots):
+                        cuts_by_pred.setdefault(pred, set()).add(split)
+                        links.append((post_lit, pred, split))
+
+        self._precedence_unique_suffix_cuts = sum(
+            len(cuts) for cuts in cuts_by_pred.values()
+        )
+        for pred, cuts in cuts_by_pred.items():
+            self._build_sparse_precedence_suffixes(cnf, pred, cuts)
+
+        for post_lit, pred, split in links:
+            cnf.append([
+                -post_lit,
+                -self._precedence_sparse_suffixes[pred][split],
+            ])
+            self._precedence_sparse_link_clauses += 1
+
+    def _add_pairwise_precedences(self, cnf: CNF) -> None:
+        self.enabled_constraints.append(
+            "(28) Pairwise precedence over "
+            f"{self.precedence_graph} distance-labelled relations"
+        )
+        for post, distances in enumerate(self._precedence_distances):
+            for pred, distance in sorted(distances.items()):
+                for pred_slot in self._eligible_slots[pred]:
+                    pred_lit = self.x(pred, pred_slot)
+                    for post_slot in self._eligible_slots[post]:
+                        if pred_slot + distance > post_slot:
+                            cnf.append([-pred_lit, -self.x(post, post_slot)])
+                            self._precedence_pairwise_clauses += 1
+
+    def _add_precedences(self, cnf: CNF) -> None:
+        if self.precedence_encoding == "pairwise":
+            self._add_pairwise_precedences(cnf)
+            return
+        self._add_sparse_suffix_precedences(cnf)
+
+    # Used-slot channeling and span objective --------------------------
+
+    @staticmethod
+    def _add_equiv_or(cnf: CNF, out: int, left: int, right: int) -> None:
+        cnf.append([-left, out])
+        cnf.append([-right, out])
+        cnf.append([left, right, -out])
+
+    @staticmethod
+    def _add_equiv(cnf: CNF, left: int, right: int) -> None:
+        cnf.append([-left, right])
+        cnf.append([left, -right])
+
+    def _channel_used_slots(self, cnf: CNF) -> None:
+        self.enabled_constraints.append("exact schedule <-> usedSlot channeling")
+        for participant, meetings in enumerate(self.inst.meetings_by_business):
+            for slot in range(self.inst.n_total_slots):
+                used = self.used_or_none(participant, slot)
                 if used is None:
                     continue
                 scheduled = [
                     lit
-                    for m in meetings
-                    if (lit := self.x_or_none(m, t)) is not None
+                    for meeting in meetings
+                    if (lit := self.x_or_none(meeting, slot)) is not None
                 ]
                 for lit in scheduled:
                     cnf.append([-lit, used])
                 cnf.append([-used] + scheduled)
 
             if self.use_implied_1:
-                self._add_implied_constraint_1(cnf, p)
-
-            break_slots_p: list[int] = []
-            for t in range(1, self.inst.n_total_slots - 1):
-                previous_used = [
-                    used
-                    for tau in range(t)
-                    if (used := self.used_or_none(p, tau)) is not None
-                ]
-                future_used = [
-                    used
-                    for tau in range(t + 1, self.inst.n_total_slots)
-                    if (used := self.used_or_none(p, tau)) is not None
-                ]
-                if not previous_used or not future_used:
-                    continue
-
-                before = self.meeting_before(p, t)
-                after = self.meeting_after(p, t)
-
-                # before <-> OR(previous_used)
-                for used in previous_used:
-                    cnf.append([-used, before])
-                cnf.append([-before] + previous_used)
-
-                # after <-> OR(future_used)
-                for used in future_used:
-                    cnf.append([-used, after])
-                cnf.append([-after] + future_used)
-
-                current_used = self.used_or_none(p, t)
-                break_slot = self.hole(p, t)
-                break_slots_p.append(break_slot)
-
-                # break_slot -> before AND after AND NOT current_used
-                cnf.append([-break_slot, before])
-                cnf.append([-break_slot, after])
-                if current_used is not None:
-                    cnf.append([-break_slot, -current_used])
-
-                # before AND after AND NOT current_used -> break_slot
-                reverse = [-before, -after, break_slot]
-                if current_used is not None:
-                    reverse.insert(2, current_used)
-                cnf.append(reverse)
-
-            break_slot_lits_by_participant.append(break_slots_p)
+                self._add_implied_constraint_1(cnf, participant)
 
         if self.use_implied_2:
             self._add_implied_constraint_2(cnf)
 
-        return break_slot_lits_by_participant
+    def _build_prefix_suffix(self, cnf: CNF, participant: int) -> None:
+        total_slots = self.inst.n_total_slots
+        if total_slots == 0:
+            return
 
-    def _add_implied_constraint_1(self, cnf: CNF, p: int) -> None:
-        marker = "(43) exactly |Mp| reduced usedSlot variables"
+        for slot in range(total_slots):
+            prefix = self.prefix_used(participant, slot)
+            used = self.used_or_none(participant, slot)
+            if slot == 0:
+                if used is None:
+                    cnf.append([-prefix])
+                else:
+                    self._add_equiv(cnf, prefix, used)
+            else:
+                previous = self.prefix_used(participant, slot - 1)
+                if used is None:
+                    self._add_equiv(cnf, prefix, previous)
+                else:
+                    self._add_equiv_or(cnf, prefix, previous, used)
+
+        for slot in range(total_slots - 1, -1, -1):
+            suffix = self.suffix_used(participant, slot)
+            used = self.used_or_none(participant, slot)
+            if slot == total_slots - 1:
+                if used is None:
+                    cnf.append([-suffix])
+                else:
+                    self._add_equiv(cnf, suffix, used)
+            else:
+                following = self.suffix_used(participant, slot + 1)
+                if used is None:
+                    self._add_equiv(cnf, suffix, following)
+                else:
+                    self._add_equiv_or(cnf, suffix, used, following)
+
+    def _participant_span_upper_bound(self, participant: int) -> int:
+        meetings = self.inst.n_meetings_business[participant]
+        possible = sorted(
+            slot
+            for (p, slot), _ in self._used_vars.items()
+            if p == participant
+        )
+        if meetings <= 1 or not possible:
+            return 0
+        return max(0, possible[-1] - possible[0] + 1 - meetings)
+
+    def _add_span_break_thresholds(self, cnf: CNF) -> list[list[int]]:
+        """Encode ``B(p)>=k`` directly for objective participants in P*."""
+
+        self.enabled_constraints.append(
+            "linear P* first/last span encoding: B(p)=last-first+1-|Mp|"
+        )
+        self._channel_used_slots(cnf)
+        thresholds_by_participant: list[list[int]] = []
+        objective_participants = set(self.objective_participants)
+
+        for participant in range(self.inst.n_business):
+            meetings = self.inst.n_meetings_business[participant]
+            possible_slots = [
+                slot
+                for slot in range(self.inst.n_total_slots)
+                if self.used_or_none(participant, slot) is not None
+            ]
+            # Participants outside P* have at most one meeting, hence B(p)=0.
+            # Skip their prefix/suffix variables entirely to keep the encoding compact.
+            if participant not in objective_participants or not possible_slots:
+                thresholds_by_participant.append([])
+                continue
+
+            self._build_prefix_suffix(cnf, participant)
+            first_lits: dict[int, int] = {}
+            for slot in possible_slots:
+                used = self.used_or_none(participant, slot)
+                assert used is not None
+                first = self.first_used(participant, slot)
+                first_lits[slot] = first
+                if slot == 0:
+                    self._add_equiv(cnf, first, used)
+                else:
+                    previous = self.prefix_used(participant, slot - 1)
+                    # first <-> used AND NOT previous-prefix.
+                    cnf.append([-first, used])
+                    cnf.append([-first, -previous])
+                    cnf.append([-used, previous, first])
+
+            upper = self._participant_span_upper_bound(participant)
+            thresholds: list[int] = []
+            for amount in range(1, upper + 1):
+                threshold = self.break_threshold(participant, amount)
+                thresholds.append(threshold)
+                for first_slot, first in first_lits.items():
+                    target = first_slot + meetings + amount - 1
+                    if target >= self.inst.n_total_slots:
+                        cnf.append([-first, -threshold])
+                        continue
+                    suffix = self.suffix_used(participant, target)
+                    # first -> (threshold <-> suffix[target]).
+                    cnf.append([-first, -threshold, suffix])
+                    cnf.append([-first, threshold, -suffix])
+
+            for index in range(1, len(thresholds)):
+                cnf.append([-thresholds[index], thresholds[index - 1]])
+            thresholds_by_participant.append(thresholds)
+
+        return thresholds_by_participant
+
+    def _add_implied_constraint_1(self, cnf: CNF, participant: int) -> None:
+        marker = f"(43) exactly |Mp| {self.domain_mode} usedSlot variables"
         if marker not in self.enabled_constraints:
             self.enabled_constraints.append(marker)
         lits = [
             used
-            for t in range(self.inst.n_total_slots)
-            if (used := self.used_or_none(p, t)) is not None
+            for slot in range(self.inst.n_total_slots)
+            if (used := self.used_or_none(participant, slot)) is not None
         ]
-        self._add_exactly_cardnet(cnf, lits, self.inst.n_meetings_business[p])
+        self._add_exactly_cardnet(
+            cnf, lits, self.inst.n_meetings_business[participant]
+        )
 
     def _add_implied_constraint_2(self, cnf: CNF) -> None:
         self.enabled_constraints.append("(44) atMost 2|L| busy participants per slot")
         bound = 2 * self.inst.n_tables
-        for t in range(self.inst.n_total_slots):
+        for slot in range(self.inst.n_total_slots):
             lits = [
                 used
-                for p in range(self.inst.n_business)
-                if (used := self.used_or_none(p, t)) is not None
+                for participant in range(self.inst.n_business)
+                if (used := self.used_or_none(participant, slot)) is not None
             ]
             if self.use_further_improvements:
                 self._add_even_busy_cardinality(cnf, lits, bound)
@@ -1005,18 +1602,11 @@ class B2BSATModel:
                 self._add_atmost_cardnet(cnf, lits, bound)
 
     def _add_even_busy_cardinality(self, cnf: CNF, lits: list[int], bound: int) -> None:
-        """Encode (44) and the even-cardinality improvement (45) exactly.
-
-        The paper expresses evenness through cardinality-network outputs. PySAT does
-        not expose fully reified sorting outputs through CardEnc, so this implementation
-        keeps the paper's atMost-cardinality constraint and adds an exact linear XOR
-        parity chain. This is logically equivalent to forbidding every odd count.
-        """
+        """Add the useful implied even-busy constraint with a linear parity chain."""
 
         marker = "(45) exact even number of busy participants"
         if marker not in self.enabled_constraints:
             self.enabled_constraints.append(marker)
-
         self._add_atmost_cardnet(cnf, lits, bound)
         if not lits:
             return
@@ -1027,7 +1617,6 @@ class B2BSATModel:
         parity = lits[0]
         for index, lit in enumerate(lits[1:], start=1):
             next_parity = self.vpool.id(("busyParity", tuple(lits), index))
-            # next_parity <-> parity XOR lit
             cnf.append([parity, lit, -next_parity])
             cnf.append([-parity, -lit, -next_parity])
             cnf.append([parity, -lit, next_parity])
@@ -1035,162 +1624,82 @@ class B2BSATModel:
             parity = next_parity
         cnf.append([-parity])
 
-    @staticmethod
-    def _add_comparator(cnf: CNF, left: int, right: int, high: int, low: int) -> None:
-        """Exact Boolean comparator: high=left OR right, low=left AND right."""
-
-        cnf.append([-left, high])
-        cnf.append([-right, high])
-        cnf.append([left, right, -high])
-        cnf.append([left, -low])
-        cnf.append([right, -low])
-        cnf.append([-left, -right, low])
-
-    def _sort_descending(self, cnf: CNF, lits: list[int], tag: tuple[object, ...]) -> list[int]:
-        """Insertion sorting network with fully reified unary outputs."""
-
-        outputs: list[int] = []
-        for input_index, lit in enumerate(lits):
-            carry = lit
-            next_outputs: list[int] = []
-            for position, existing in enumerate(outputs):
-                high = self.vpool.id(("sortHigh", tag, input_index, position))
-                low = self.vpool.id(("sortLow", tag, input_index, position))
-                self._add_comparator(cnf, carry, existing, high, low)
-                next_outputs.append(high)
-                carry = low
-            next_outputs.append(carry)
-            outputs = next_outputs
-        return outputs
-
-    # Optimization and fairness ----------------------------------------
-
-    def _participant_break_upper_bound(self, p: int, hole_count: int) -> int:
-        """Upper bound on total internal idle slots for participant p."""
-        meetings = self.inst.n_meetings_business[p]
-        if meetings <= 1:
-            return 0
-        # At most every non-meeting slot can lie between the first and last meeting.
-        theoretical = max(0, self.inst.n_total_slots - meetings)
-        return min(hole_count, theoretical)
-
-    def _add_break_slot_gap_objective(
+    def _add_gap_objective(
         self,
         cnf: CNF,
-        hole_lits_by_participant: list[list[int]],
-        fairness_cap: int | None = None,
-    ) -> tuple[list[list[int]], list[int]]:
-        """Encode the range of B(p) over P* using unary thresholds.
+        thresholds_by_participant: list[list[int]],
+    ) -> list[int]:
+        """Encode exactly ``max_{p in P*} B(p)-min_{p in P*} B(p)``."""
 
-        P* = {p : |M_p| >= 2}; participants outside P* cannot have an internal
-        idle slot and are intentionally excluded from the max/min calculation.
-        B(p) is the total number of internal idle slots. At threshold k:
-          sortedBreakSlot[p,k] <-> B(p) >= k
-          maxBreakSlots[k]     <-> OR_{p in P*} sortedBreakSlot[p,k]
-          minBreakSlots[k]     <-> AND_{p in P*} sortedBreakSlot[p,k]
-          difBreakSlots[k]     <-> maxBreakSlots[k] AND NOT minBreakSlots[k]
-
-        Therefore sum_k difBreakSlots[k]
-          = max_{p in P*} B(p) - min_{p in P*} B(p).
-        The range of an empty or singleton P* is defined as zero.
-        """
         self.enabled_constraints.append(
-            "exact unary internal-idle counts and range objective over P*"
+            "exact max/min objective gap over P* with no hard upper bound"
         )
-        sorted_by_participant: list[list[int]] = []
-
-        for p, holes in enumerate(hole_lits_by_participant):
-            upper = self._participant_break_upper_bound(p, len(holes))
-            if upper == 0:
-                sorted_by_participant.append([])
-                continue
-
-            unary_outputs = self._sort_descending(cnf, holes, ("participantBreakSlots", p))
-            sorted_p: list[int] = []
-            for k in range(1, upper + 1):
-                sorted_lit = self.sorted_hole(p, k)
-                sorted_p.append(sorted_lit)
-                output = unary_outputs[k - 1]
-                cnf.append([-sorted_lit, output])
-                cnf.append([-output, sorted_lit])
-            sorted_by_participant.append(sorted_p)
+        if len(self.objective_participants) <= 1:
+            return []
 
         global_upper = max(
             (
-                len(sorted_by_participant[p])
-                for p in self.objective_participants
+                len(thresholds_by_participant[participant])
+                for participant in self.objective_participants
             ),
             default=0,
         )
         gap_lits: list[int] = []
+        max_lits: list[int] = []
+        min_lits: list[int] = []
 
-        for k in range(1, global_upper + 1):
-            max_lit = self.max_break(k)
-            min_lit = self.min_break(k)
-            gap_lit = self.dif_break(k)
+        for amount in range(1, global_upper + 1):
+            max_lit = self.max_break(amount)
+            min_lit = self.min_break(amount)
+            gap_lit = self.dif_break(amount)
+            max_lits.append(max_lit)
+            min_lits.append(min_lit)
             gap_lits.append(gap_lit)
 
-            threshold_lits = [
-                sorted_by_participant[p][k - 1]
-                for p in self.objective_participants
-                if k <= len(sorted_by_participant[p])
+            present = [
+                thresholds_by_participant[participant][amount - 1]
+                for participant in self.objective_participants
+                if amount <= len(thresholds_by_participant[participant])
             ]
 
-            # maxBreak[k] <-> OR of all available threshold literals.
-            if threshold_lits:
-                for sorted_lit in threshold_lits:
-                    cnf.append([-sorted_lit, max_lit])
-                cnf.append([-max_lit] + threshold_lits)
+            if present:
+                for threshold in present:
+                    cnf.append([-threshold, max_lit])
+                cnf.append([-max_lit] + present)
             else:
                 cnf.append([-max_lit])
 
-            # minBreak[k] <-> AND over P*. A missing threshold is constant false
-            # because that objective participant cannot reach level k.
-            if len(threshold_lits) != len(self.objective_participants):
+            if len(present) != len(self.objective_participants):
                 cnf.append([-min_lit])
             else:
-                for sorted_lit in threshold_lits:
-                    cnf.append([-min_lit, sorted_lit])
-                cnf.append([min_lit] + [-lit for lit in threshold_lits])
+                for threshold in present:
+                    cnf.append([-min_lit, threshold])
+                cnf.append([min_lit] + [-threshold for threshold in present])
 
-            # difBreak[k] <-> maxBreak[k] AND NOT minBreak[k].
             cnf.append([-gap_lit, max_lit])
             cnf.append([-gap_lit, -min_lit])
             cnf.append([-max_lit, min_lit, gap_lit])
 
-        if fairness_cap is not None:
-            self._add_atmost_seqcounter(cnf, gap_lits, fairness_cap)
-            self.enabled_constraints.append(
-                f"optional hard IdleRange(P*) cap <= {fairness_cap}"
-            )
+        for index in range(1, len(max_lits)):
+            cnf.append([-max_lits[index], max_lits[index - 1]])
+            cnf.append([-min_lits[index], min_lits[index - 1]])
 
-        return sorted_by_participant, gap_lits
+        return gap_lits
 
     # Decoding and independent validation ------------------------------
 
     def decode_assignment(self, sat_model: list[int]) -> list[int]:
         positives = {lit for lit in sat_model if lit > 0}
         assignment = [-1] * self.inst.n_meetings
-        for m, slots in enumerate(self._eligible_slots):
-            chosen = [t for t in slots if self.x(m, t) in positives]
-            assignment[m] = chosen[0] if chosen else -1
+        for meeting, slots in enumerate(self._eligible_slots):
+            chosen = [slot for slot in slots if self.x(meeting, slot) in positives]
+            assignment[meeting] = chosen[0] if chosen else -1
         return assignment
 
     def encoded_objective_value(self, sat_model: list[int]) -> int:
-        """Return the gap encoded by the objective literals in a SAT model."""
         artifacts = self.build_base_cnf()
         positives = {lit for lit in sat_model if lit > 0}
-        return sum(1 for lit in artifacts.objective_lits if lit in positives)
-
-    def encoded_idle_sum(self, sat_model: list[int]) -> int:
-        """Return IdleSum encoded by the secondary objective literals."""
-        artifacts = self.build_base_cnf()
-        positives = {lit for lit in sat_model if lit > 0}
-        return sum(
-            1
-            for lit in artifacts.secondary_objective_lits
-            if lit in positives
-        )
+        return sum(lit in positives for lit in artifacts.objective_lits)
 
     def objective_consistency_errors(
         self,
@@ -1200,9 +1709,8 @@ class B2BSATModel:
         imposed_bound: int | None = None,
         solver_cost: int | None = None,
     ) -> list[str]:
-        """Cross-check CNF/WCNF objective semantics against decoded schedule stats."""
         encoded = self.encoded_objective_value(sat_model)
-        expected = stats.fairness_gap
+        expected = stats.objective_gap
         errors: list[str] = []
         if encoded != expected:
             errors.append(
@@ -1221,120 +1729,21 @@ class B2BSATModel:
             )
         return errors
 
-    def secondary_objective_consistency_errors(
-        self,
-        sat_model: list[int],
-        stats: B2BSolutionStats,
-        *,
-        imposed_bound: int | None = None,
-        solver_cost: int | None = None,
-    ) -> list[str]:
-        """Cross-check the encoded IdleSum against the decoded schedule."""
-        encoded = self.encoded_idle_sum(sat_model)
-        expected = stats.total_internal_idle_slots
-        errors: list[str] = []
-        if encoded != expected:
-            errors.append(
-                "secondary objective encoding mismatch: "
-                f"encoded IdleSum={encoded}, schedule IdleSum={expected}"
-            )
-        if imposed_bound is not None and encoded > imposed_bound:
-            errors.append(
-                "secondary objective-bound violation: "
-                f"encoded IdleSum={encoded}, imposed bound={imposed_bound}"
-            )
-        if solver_cost is not None and solver_cost != encoded:
-            errors.append(
-                "secondary solver-cost mismatch: "
-                f"solver cost={solver_cost}, encoded IdleSum={encoded}"
-            )
-        return errors
-
     def compute_stats(self, assignment: list[int]) -> B2BSolutionStats:
-        meetings_per_slot: list[list[int]] = [[] for _ in range(self.inst.n_total_slots)]
-        for m, t in enumerate(assignment):
-            if 0 <= t < self.inst.n_total_slots:
-                meetings_per_slot[t].append(m)
-
-        participant_breaks = [0] * self.inst.n_business
-        for p, meetings in enumerate(self.inst.meetings_by_business):
-            slots = sorted(assignment[m] for m in meetings if assignment[m] >= 0)
-            participant_breaks[p] = sum(
-                max(0, right - left - 1)
-                for left, right in zip(slots, slots[1:])
-            )
-
-        objective_values = [
-            participant_breaks[p]
-            for p in self.objective_participants
-        ]
-        objective_range = (
-            max(objective_values) - min(objective_values)
-            if len(objective_values) >= 2
-            else 0
-        )
-        all_participant_range = (
-            max(participant_breaks) - min(participant_breaks)
-            if len(participant_breaks) >= 2
-            else 0
-        )
-
-        return B2BSolutionStats(
-            total_breaks=sum(participant_breaks),
-            participant_breaks=participant_breaks,
-            fairness_gap=objective_range,
-            all_participant_idle_range=all_participant_range,
-            objective_participants=self.objective_participants,
-            meetings_per_slot=meetings_per_slot,
-            busy_participants_per_slot=[2 * len(ms) for ms in meetings_per_slot],
+        return compute_solution_stats(
+            self.inst,
+            assignment,
+            participants=self.objective_participants,
         )
 
     def validate_assignment(self, assignment: list[int]) -> list[str]:
-        """Check a decoded schedule against the original B2B semantics."""
+        """Check a decoded schedule against the original hard B2B semantics."""
 
-        errors: list[str] = []
-        if len(assignment) != self.inst.n_meetings:
-            return ["assignment length does not match nMeetings"]
-
-        for m, t in enumerate(assignment):
-            if t not in original_eligible_slots(self.inst, m):
-                errors.append(
-                    f"meeting {m + 1} assigned to an ineligible slot "
-                    f"{t + 1 if t >= 0 else t}"
-                )
-
-        for p, meetings in enumerate(self.inst.meetings_by_business):
-            seen: dict[int, int] = {}
-            for m in meetings:
-                t = assignment[m]
-                if t in seen:
-                    errors.append(
-                        f"participant {p + 1} collision at slot {t + 1}: "
-                        f"meetings {seen[t] + 1} and {m + 1}"
-                    )
-                seen[t] = m
-
-        for t in range(self.inst.n_total_slots):
-            count = sum(1 for assigned_t in assignment if assigned_t == t)
-            if count > self.inst.n_tables:
-                errors.append(
-                    f"capacity exceeded at slot {t + 1}: {count}>{self.inst.n_tables}"
-                )
-
-        for post, preds in enumerate(self.graph.direct_predecessors):
-            for pred in preds:
-                if assignment[pred] >= assignment[post]:
-                    errors.append(
-                        f"precedence violation: meeting {pred + 1} !< meeting {post + 1}"
-                    )
-
-        if self.fairness_limit is not None:
-            stats = self.compute_stats(assignment)
-            if stats.fairness_gap > self.fairness_limit:
-                errors.append(
-                    f"IdleRange(P*) {stats.fairness_gap} exceeds {self.fairness_limit}"
-                )
-        return errors
+        return validate_schedule_assignment(
+            self.inst,
+            assignment,
+            graph=self.graph,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1346,18 +1755,31 @@ def _main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Build the combined precedence-graph + variable-reduction B2B encoding."
+        description=(
+            "Build the optimized objective-only B2B SAT/MaxSAT encoding."
+        )
     )
     parser.add_argument("instance", help="MiniZinc .dzn instance")
     parser.add_argument(
         "--precedence-mode",
         choices=sorted(VALID_PRECEDENCE_MODES),
-        default="staircase",
+        help="deprecated composite alias: traditional or staircase",
     )
     parser.add_argument(
-        "--precedence-edges",
-        choices=sorted(VALID_PRECEDENCE_EDGE_MODES),
-        default="direct",
+        "--precedence-encoding",
+        choices=sorted(VALID_PRECEDENCE_ENCODINGS),
+        help="P factor: pairwise or sparse_suffix",
+    )
+    parser.add_argument(
+        "--precedence-graph",
+        choices=sorted(VALID_PRECEDENCE_GRAPHS),
+        help="G factor: direct or distance_closure",
+    )
+    parser.add_argument(
+        "--domain-filter-graph",
+        choices=sorted(VALID_DOMAIN_FILTER_GRAPHS),
+        default="distance_closure",
+        help="F factor for Reduced preprocessing: direct (E) or closure (E*)",
     )
     parser.add_argument(
         "--encoding-variant",
@@ -1365,24 +1787,24 @@ def _main() -> None:
         default="imp12+",
     )
     parser.add_argument(
-        "--objective-mode",
-        choices=sorted(VALID_OBJECTIVE_MODES),
-        default="idle-range",
-    )
-    parser.add_argument(
-        "--fairness",
-        type=int,
-        default=-1,
-        help=(
-            "Optional hard cap on the internal-idle range over participants "
-            "with at least two meetings; "
-            "negative means no cap"
-        ),
+        "--domain-mode",
+        choices=sorted(VALID_DOMAIN_MODES),
+        default="reduced",
     )
     parser.add_argument("--write-cnf", type=Path)
     parser.add_argument("--write-wcnf", type=Path)
     parser.add_argument("--skip-meetingsx-validation", action="store_true")
     args = parser.parse_args()
+    if args.precedence_mode is not None and (
+        args.precedence_encoding is not None or args.precedence_graph is not None
+    ):
+        parser.error(
+            "--precedence-mode cannot be combined with independent P/G flags"
+        )
+    if (args.precedence_encoding is None) != (args.precedence_graph is None):
+        parser.error(
+            "--precedence-encoding and --precedence-graph must be used together"
+        )
 
     inst = read_instance(
         args.instance,
@@ -1390,39 +1812,56 @@ def _main() -> None:
     )
     model = B2BSATModel(
         inst=inst,
-        fairness_limit=None if args.fairness < 0 else args.fairness,
         precedence_mode=args.precedence_mode,
+        precedence_encoding=args.precedence_encoding,
+        precedence_graph=args.precedence_graph,
+        domain_filter_graph=args.domain_filter_graph,
         encoding_variant=args.encoding_variant,
-        objective_mode=args.objective_mode,
-        precedence_edge_mode=args.precedence_edges,
+        domain_mode=args.domain_mode,
     )
     artifacts = model.build_base_cnf()
 
     print(f"instance={inst.instance_name}")
     print(f"variant={artifacts.encoding_variant}")
     print(f"precedence_mode={artifacts.precedence_mode}")
-    print(f"precedence_edge_mode={artifacts.precedence_edge_mode}")
+    print(f"precedence_encoding={artifacts.precedence_encoding}")
+    print(f"precedence_graph={artifacts.precedence_graph}")
+    print(f"precedence_configuration={artifacts.precedence_configuration}")
+    print(f"domain_mode={artifacts.domain_mode}")
+    print(f"domain_filter_graph={artifacts.domain_filter_graph}")
     print(
         "schedule_candidates="
-        f"{artifacts.reduced_schedule_candidates}/{artifacts.initial_schedule_candidates} "
-        f"(removed={artifacts.removed_schedule_candidates})"
+        f"active:{artifacts.active_schedule_candidates}, "
+        f"full:{artifacts.full_schedule_candidates}, "
+        f"unary_eligible:{artifacts.unary_eligible_schedule_candidates}, "
+        f"reduced:{artifacts.reduced_schedule_candidates}"
     )
     print(
         "precedence_edges="
         f"direct:{artifacts.precedence_direct_edges}, "
-        f"source_added:{artifacts.precedence_source_added_edges}, "
-        f"encoded:{artifacts.precedence_encoded_edges}, "
-        f"full_closure_reference:{artifacts.precedence_transitive_edges}"
+        f"closure:{artifacts.precedence_transitive_edges}, "
+        f"max_distance:{artifacts.precedence_max_distance}"
     )
-    print(f"precedence_cycle_nodes={[v + 1 for v in artifacts.precedence_cycle_nodes]}")
+    print(
+        "precedence_encoding_metrics="
+        f"relations:{artifacts.precedence_relation_edges}, "
+        f"pairwise_clauses:{artifacts.precedence_pairwise_clauses}, "
+        f"sparse_links:{artifacts.precedence_sparse_link_clauses}, "
+        f"unique_cuts:{artifacts.precedence_unique_suffix_cuts}"
+    )
+    print(
+        "precedence_cycle_nodes="
+        f"{[node + 1 for node in artifacts.precedence_cycle_nodes]}"
+    )
     print(f"vars={artifacts.n_vars}")
     print(f"clauses={artifacts.n_clauses}")
     print(f"objective={artifacts.objective_name}")
-    print(f"objective_literals={len(artifacts.objective_lits)}")
     print(
-        "secondary_objective_literals="
-        f"{len(artifacts.secondary_objective_lits)}"
+        "objective_participants="
+        f"{[participant + 1 for participant in artifacts.objective_participants]}"
     )
+    print(f"objective_encoding={artifacts.objective_encoding}")
+    print(f"objective_literals={len(artifacts.objective_lits)}")
     print("enabled_constraints=")
     for item in artifacts.enabled_constraints:
         print(f"  - {item}")

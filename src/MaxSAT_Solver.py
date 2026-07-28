@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+import os
+import shlex
+import shutil
+import subprocess
+import tempfile
+from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pysat.card import CardEnc, EncType
+from pysat import __version__ as pysat_version
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
 from B2B_Instance import B2BInstance, B2BSATModel, B2BSolutionStats, read_instance
+
+
+MaxSATBackend = Literal["uwrmaxsat", "rc2"]
+VALID_MAXSAT_BACKENDS = {"uwrmaxsat", "rc2"}
+DEFAULT_UWRMAXSAT_TIMEOUT_SECONDS = 3600.0
+UWRMAXSAT_NOT_FOUND_MESSAGE = (
+    "Required UWrMaxSAT executable not found; set UWRMAXSAT_BIN, pass "
+    "uwrmaxsat_bin, or place it at uwrmaxsat/build/release/bin/uwrmaxsat. "
+    "Automatic RC2 fallback is disabled"
+)
 
 
 def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
@@ -18,66 +34,227 @@ def _ensure_instance(instance_or_path: B2BInstance | str | Path) -> B2BInstance:
     )
 
 
+def _positive_float_from_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive number; got {raw_value!r}") from exc
+    if value <= 0:
+        raise ValueError(f"{name} must be positive; got {value}")
+    return value
+
+
+def _is_executable_file(path: Path) -> bool:
+    return path.is_file() and (os.name == "nt" or os.access(path, os.X_OK))
+
+
+def resolve_uwrmaxsat_binary(explicit_path: str | Path | None = None) -> Path | None:
+    """Resolve the requested UWrMaxSAT executable without path substitution.
+
+    An explicit argument or ``UWRMAXSAT_BIN`` pins resolution to that value. The
+    repository-local layouts and ``PATH`` are consulted only when neither is set.
+    """
+
+    script_dir = Path(__file__).resolve().parent
+    configured = explicit_path or os.environ.get("UWRMAXSAT_BIN")
+    if configured:
+        configured_text = os.path.expandvars(os.path.expanduser(str(configured)))
+        configured_path = Path(configured_text)
+        candidates = [configured_path]
+        if configured_path.parent == Path("."):
+            located = shutil.which(configured_text)
+            if located:
+                candidates.append(Path(located))
+    else:
+        executable_name = "uwrmaxsat.exe" if os.name == "nt" else "uwrmaxsat"
+        candidates = [
+            script_dir / "uwrmaxsat" / "build" / "release" / "bin" / executable_name,
+            script_dir / "UWrMaxSat" / "build" / "release" / "bin" / executable_name,
+            script_dir / "UWrMaxSAT" / "build" / "release" / "bin" / executable_name,
+        ]
+        located = shutil.which("uwrmaxsat")
+        if located:
+            candidates.append(Path(located))
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = str(candidate.resolve(strict=False))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if _is_executable_file(candidate):
+            return candidate.resolve()
+    return None
+
+
+def executable_sha256(path: Path) -> str:
+    """Return a stable identifier for the exact solver executable."""
+
+    digest = sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _parse_uwrmaxsat_output(output: str) -> tuple[str | None, int | None, list[int]]:
+    """Parse the standard ``s``, ``o`` and ``v`` lines emitted by UWrMaxSAT."""
+
+    status: str | None = None
+    cost: int | None = None
+    model: list[int] = []
+
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("s "):
+            status = line[2:].strip()
+        elif line.startswith("o "):
+            try:
+                cost = int(line[2:].strip())
+            except ValueError:
+                continue
+        elif line.startswith("v "):
+            for token in line[2:].split():
+                try:
+                    literal = int(token)
+                except ValueError:
+                    continue
+                if literal != 0:
+                    model.append(literal)
+
+    return status, cost, model
+
+
+def _subprocess_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
+
+
 class B2BMaxSATSolver:
     """MaxSAT optimization of the internal-idle-slot range over P*.
 
-    B2B_Instance exposes unary objective literals whose true count is exactly
-    max_{p in P*} B(p) - min_{p in P*} B(p), where P* contains participants
-    with at least two meetings. RC2 minimizes that count using unit soft clauses
-    [-lit]. In ``lexicographic`` mode, a second RC2 run fixes the proven range
-    optimum and minimizes the sum of participant internal-idle slots. An optional
-    fairness_limit adds a hard upper bound on the same range.
+    The true count of the shared model's objective literals is exactly
+    ``max_{p in P*} B(p) - min_{p in P*} B(p)``, where
+    ``P* = {p : |M_p| >= 2}``. UWrMaxSAT is the required default backend and a
+    missing executable is an immediate error. RC2 remains available only when
+    selected explicitly for development checks. No hard objective cap or
+    secondary lexicographic objective is included.
     """
 
     def __init__(
         self,
         instance_or_path: B2BInstance | str | Path,
-        fairness_limit: int | None = None,
-        precedence_mode: str = "traditional",
+        precedence_mode: str | None = None,
         encoding_variant: str = "imp12+",
-        objective_mode: str = "idle-range",
-        precedence_edge_mode: str = "direct",
+        domain_mode: str = "reduced",
+        *,
+        precedence_encoding: str | None = None,
+        precedence_graph: str | None = None,
+        domain_filter_graph: str = "distance_closure",
+        backend: MaxSATBackend | str | None = None,
+        uwrmaxsat_bin: str | Path | None = None,
+        uwrmaxsat_sha256: str | None = None,
+        uwrmaxsat_timeout: float | None = None,
     ) -> None:
+        selected_backend = (
+            backend or os.environ.get("B2B_MAXSAT_BACKEND", "uwrmaxsat")
+        ).lower()
+        if selected_backend not in VALID_MAXSAT_BACKENDS:
+            raise ValueError(
+                f"Unknown MaxSAT backend={selected_backend!r}; expected one of "
+                f"{sorted(VALID_MAXSAT_BACKENDS)}"
+            )
+
+        timeout = (
+            _positive_float_from_env(
+                "UWRMAXSAT_TIMEOUT",
+                DEFAULT_UWRMAXSAT_TIMEOUT_SECONDS,
+            )
+            if uwrmaxsat_timeout is None
+            else float(uwrmaxsat_timeout)
+        )
+        if timeout <= 0:
+            raise ValueError("uwrmaxsat_timeout must be positive")
+
+        self.backend: MaxSATBackend = selected_backend  # type: ignore[assignment]
+        self.uwrmaxsat_bin = uwrmaxsat_bin
+        self.uwrmaxsat_timeout = timeout
+        self.resolved_uwrmaxsat_bin = resolve_uwrmaxsat_binary(uwrmaxsat_bin)
+        self.uwrmaxsat_binary_sha256 = (
+            executable_sha256(self.resolved_uwrmaxsat_bin)
+            if self.resolved_uwrmaxsat_bin is not None
+            else ""
+        )
+        expected_sha256 = (
+            uwrmaxsat_sha256 or os.environ.get("UWRMAXSAT_SHA256", "")
+        ).strip().lower()
+        if expected_sha256 and (
+            len(expected_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in expected_sha256)
+        ):
+            raise ValueError("UWRMAXSAT_SHA256 must be a 64-character hex digest")
+        self.expected_uwrmaxsat_sha256 = expected_sha256
+
+        if self.backend == "uwrmaxsat" and self.resolved_uwrmaxsat_bin is None:
+            raise FileNotFoundError(UWRMAXSAT_NOT_FOUND_MESSAGE)
+        if (
+            self.backend == "uwrmaxsat"
+            and expected_sha256
+            and self.uwrmaxsat_binary_sha256 != expected_sha256
+        ):
+            raise RuntimeError(
+                "UWrMaxSAT executable SHA-256 mismatch: "
+                f"expected {expected_sha256}, got {self.uwrmaxsat_binary_sha256}"
+            )
+        self.solver_backend = (
+            "UWrMaxSAT" if self.backend == "uwrmaxsat" else "RC2"
+        )
+        self.solver_binary = (
+            str(self.resolved_uwrmaxsat_bin)
+            if self.backend == "uwrmaxsat"
+            and self.resolved_uwrmaxsat_bin is not None
+            else ""
+        )
+        self.solver_version = (
+            f"binary-sha256:{self.uwrmaxsat_binary_sha256}"
+            if self.backend == "uwrmaxsat"
+            else f"python-sat {pysat_version}"
+        )
+        self.solver_command = (
+            shlex.join([self.solver_binary, "-m", "<WCNF>"])
+            if self.backend == "uwrmaxsat"
+            else ""
+        )
+
+        if (
+            precedence_mode is None
+            and precedence_encoding is None
+            and precedence_graph is None
+        ):
+            precedence_mode = "traditional"
+
         self.inst = _ensure_instance(instance_or_path)
         self.model = B2BSATModel(
             inst=self.inst,
-            fairness_limit=fairness_limit,
             precedence_mode=precedence_mode,
+            precedence_encoding=precedence_encoding,
+            precedence_graph=precedence_graph,
             encoding_variant=encoding_variant,
-            objective_mode=objective_mode,
-            precedence_edge_mode=precedence_edge_mode,
+            domain_mode=domain_mode,
+            domain_filter_graph=domain_filter_graph,
         )
         self.artifacts = self.model.build_base_cnf()
 
     def _build_wcnf(self) -> WCNF:
-        """Use the exact hard and soft clauses produced by the shared encoder."""
         return self.model.build_wcnf()
-
-    def _build_secondary_wcnf(self, primary_optimum: int) -> WCNF:
-        """Fix the optimal range and minimize IdleSum in phase 2."""
-        wcnf = WCNF()
-        for clause in self.artifacts.cnf.clauses:
-            wcnf.append(clause)
-
-        primary_lits = self.artifacts.objective_lits
-        if primary_optimum < 0:
-            wcnf.append([])
-        elif primary_optimum == 0:
-            for lit in primary_lits:
-                wcnf.append([-lit])
-        elif primary_optimum < len(primary_lits):
-            bound = CardEnc.atmost(
-                lits=primary_lits,
-                bound=primary_optimum,
-                top_id=self.artifacts.n_vars,
-                encoding=EncType.seqcounter,
-            )
-            for clause in bound.clauses:
-                wcnf.append(clause)
-
-        for lit in self.artifacts.secondary_objective_lits:
-            wcnf.append([-lit], weight=1)
-        return wcnf
 
     def _pack_result(
         self,
@@ -87,205 +264,403 @@ class B2BMaxSATSolver:
         checks: list[str] | None = None,
         *,
         solver_cost: int | None = None,
-        secondary_optimum: int | None = None,
+        solver_backend: str,
+        solver_message: str = "",
+        solver_command: str = "",
     ) -> dict[str, Any]:
         return {
             "status": status,
             "solver": "MaxSAT",
+            "solver_backend": solver_backend,
+            "solver_binary": (
+                self.solver_binary if solver_backend == "UWrMaxSAT" else ""
+            ),
+            "solver_binary_sha256": (
+                self.uwrmaxsat_binary_sha256
+                if solver_backend == "UWrMaxSAT"
+                else ""
+            ),
+            "solver_version": (
+                self.solver_version
+                if solver_backend == self.solver_backend
+                else ""
+            ),
+            "solver_command": solver_command,
+            "solver_message": solver_message,
+            "maxsat_backend_preference": self.backend,
             "precedence_mode": self.artifacts.precedence_mode,
-            "precedence_edge_mode": self.artifacts.precedence_edge_mode,
+            "precedence_encoding": self.artifacts.precedence_encoding,
+            "precedence_graph": self.artifacts.precedence_graph,
+            "precedence_configuration": (
+                self.artifacts.precedence_configuration
+            ),
             "encoding_variant": self.artifacts.encoding_variant,
+            "domain_mode": self.artifacts.domain_mode,
+            "domain_filter_graph": self.artifacts.domain_filter_graph,
             "objective": self.artifacts.objective_name,
-            "objective_mode": self.artifacts.objective_mode,
             "objective_participant_count": len(
                 self.artifacts.objective_participants
             ),
             "objective_participants": tuple(
-                p + 1 for p in self.artifacts.objective_participants
+                participant + 1
+                for participant in self.artifacts.objective_participants
             ),
             "objective_value": (
-                stats.fairness_gap if stats is not None else solver_cost
+                stats.objective_gap if stats is not None else solver_cost
             ),
-            "proven_optimum": solver_cost,
+            "proven_optimum": solver_cost if status == "OPTIMAL" else None,
             "solver_cost": solver_cost,
-            "secondary_objective_value": (
-                stats.total_internal_idle_slots
-                if stats is not None
-                and self.artifacts.objective_mode == "lexicographic"
-                else None
-            ),
-            "secondary_proven_optimum": secondary_optimum,
-            "hard_fairness_limit": self.artifacts.fairness_limit,
             "assignment": assignment,
             "stats": stats,
             "validation_errors": checks or [],
             "n_vars": self.artifacts.n_vars,
             "n_clauses": self.artifacts.n_clauses,
+            "n_hard_clauses": self.artifacts.n_clauses,
             "n_soft": len(self.artifacts.objective_lits),
-            "n_primary_objective_lits": len(self.artifacts.objective_lits),
-            "n_secondary_objective_lits": len(
-                self.artifacts.secondary_objective_lits
+            "n_soft_clauses": len(self.artifacts.objective_lits),
+            "n_objective_lits": len(self.artifacts.objective_lits),
+            "full_schedule_candidates": (
+                self.artifacts.full_schedule_candidates
+            ),
+            "unary_eligible_schedule_candidates": (
+                self.artifacts.unary_eligible_schedule_candidates
+            ),
+            "initial_schedule_candidates": (
+                self.artifacts.initial_schedule_candidates
+            ),
+            "reduced_schedule_candidates": (
+                self.artifacts.reduced_schedule_candidates
+            ),
+            "active_schedule_candidates": (
+                self.artifacts.active_schedule_candidates
+            ),
+            "unary_removed_schedule_candidates": (
+                self.artifacts.unary_removed_schedule_candidates
+            ),
+            "preprocessing_removed_schedule_candidates": (
+                self.artifacts.preprocessing_removed_schedule_candidates
+            ),
+            "removed_schedule_candidates": (
+                self.artifacts.removed_schedule_candidates
             ),
             "precedence_direct_edges": self.artifacts.precedence_direct_edges,
-            "precedence_source_added_edges": (
-                self.artifacts.precedence_source_added_edges
-            ),
-            "precedence_encoded_edges": self.artifacts.precedence_encoded_edges,
-            "precedence_full_closure_edges": (
+            "precedence_closure_edges": (
                 self.artifacts.precedence_transitive_edges
             ),
+            "precedence_max_distance": self.artifacts.precedence_max_distance,
+            "precedence_relation_edges": (
+                self.artifacts.precedence_relation_edges
+            ),
+            "precedence_pairwise_clauses": (
+                self.artifacts.precedence_pairwise_clauses
+            ),
+            "precedence_sparse_link_clauses": (
+                self.artifacts.precedence_sparse_link_clauses
+            ),
+            "precedence_unique_suffix_cuts": (
+                self.artifacts.precedence_unique_suffix_cuts
+            ),
             "enabled_constraints": self.artifacts.enabled_constraints,
+            "n_optimizer_calls": 1,
+            "n_bound_encodings": 0,
+            "optimizer_added_variables_peak": 0,
+            "optimizer_added_clauses_peak": 0,
+            "optimizer_added_literals_peak": 0,
+            "optimizer_added_clauses_cumulative": 0,
         }
 
-    def solve(self, verbose: bool = False) -> dict[str, Any]:
-        wcnf = self._build_wcnf()
-
-        with RC2(wcnf) as solver:
-            primary_model = solver.compute()
-            if primary_model is None:
-                return self._pack_result("UNSAT", None, None)
-
-            assignment = self.model.decode_assignment(primary_model)
-            stats = self.model.compute_stats(assignment)
-            primary_optimum = int(solver.cost)
-
-            checks = self.model.validate_assignment(assignment)
-            checks.extend(
-                self.model.objective_consistency_errors(
-                    primary_model,
-                    stats,
-                    solver_cost=primary_optimum,
-                )
-            )
-
-        if checks:
-            return self._pack_result(
-                "ERROR",
-                assignment,
+    def _validate_model(
+        self,
+        sat_model: list[int],
+        solver_cost: int,
+    ) -> tuple[list[int], B2BSolutionStats, list[str]]:
+        assignment = self.model.decode_assignment(sat_model)
+        stats = self.model.compute_stats(assignment)
+        checks = self.model.validate_assignment(assignment)
+        checks.extend(
+            self.model.objective_consistency_errors(
+                sat_model,
                 stats,
-                checks,
-                solver_cost=primary_optimum,
+                solver_cost=solver_cost,
             )
+        )
+        return assignment, stats, checks
 
-        if self.artifacts.objective_mode == "lexicographic":
-            secondary_wcnf = self._build_secondary_wcnf(primary_optimum)
-            with RC2(secondary_wcnf) as secondary_solver:
-                sat_model = secondary_solver.compute()
-                if sat_model is None:
-                    return self._pack_result(
-                        "ERROR",
-                        assignment,
-                        stats,
-                        ["phase 2 became UNSAT after fixing the phase-1 optimum"],
-                        solver_cost=primary_optimum,
-                    )
-                secondary_optimum = int(secondary_solver.cost)
+    def _solve_with_rc2(
+        self,
+        verbose: bool,
+    ) -> dict[str, Any]:
+        with RC2(self._build_wcnf()) as solver:
+            sat_model = solver.compute()
+            if sat_model is None:
+                return self._pack_result(
+                    "UNSAT",
+                    None,
+                    None,
+                    solver_backend="RC2",
+                )
+            solver_cost = int(solver.cost)
 
-            assignment = self.model.decode_assignment(sat_model)
-            stats = self.model.compute_stats(assignment)
-            checks = self.model.validate_assignment(assignment)
-            checks.extend(
-                self.model.objective_consistency_errors(
-                    sat_model,
-                    stats,
-                    imposed_bound=primary_optimum,
-                )
+        assignment, stats, checks = self._validate_model(sat_model, solver_cost)
+        if verbose:
+            print(
+                "[MaxSAT/RC2 development backend] optimum IdleRange(P*)="
+                f"{stats.objective_gap} (cost={solver_cost})"
             )
-            checks.extend(
-                self.model.secondary_objective_consistency_errors(
-                    sat_model,
-                    stats,
-                    solver_cost=secondary_optimum,
-                )
-            )
-            if stats.fairness_gap != primary_optimum:
-                checks.append(
-                    "lexicographic primary mismatch: "
-                    f"proven range={primary_optimum}, "
-                    f"schedule range={stats.fairness_gap}"
-                )
+        return self._pack_result(
+            "OPTIMAL" if not checks else "ERROR",
+            assignment,
+            stats,
+            checks,
+            solver_cost=solver_cost,
+            solver_backend="RC2",
+        )
+
+    def _solve_with_uwrmaxsat(
+        self,
+        binary: Path,
+        verbose: bool,
+    ) -> dict[str, Any]:
+        wcnf = self._build_wcnf()
+        safe_stem = Path(self.inst.instance_name).stem or "instance"
+
+        with tempfile.TemporaryDirectory(prefix="b2b_uwrmaxsat_") as temp_dir:
+            wcnf_path = Path(temp_dir) / f"{safe_stem}.wcnf"
+            wcnf.to_file(str(wcnf_path))
+            command = [str(binary), "-m", str(wcnf_path)]
 
             if verbose:
                 print(
-                    "[MaxSAT] lexicographic optimum="
-                    f"({stats.fairness_gap}, {stats.total_internal_idle_slots})"
+                    "[MaxSAT/UWrMaxSAT] running "
+                    f"{binary} with timeout={self.uwrmaxsat_timeout:g}s"
                 )
+
+            try:
+                completed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.uwrmaxsat_timeout,
+                    check=False,
+                    start_new_session=(os.name != "nt"),
+                )
+            except subprocess.TimeoutExpired as exc:
+                message = (
+                    "UWrMaxSAT timed out after "
+                    f"{self.uwrmaxsat_timeout:g} seconds"
+                )
+                if verbose:
+                    print(f"[MaxSAT/UWrMaxSAT] {message}")
+
+                partial_output = "\n".join(
+                    part
+                    for part in (
+                        _subprocess_text(exc.stdout),
+                        _subprocess_text(exc.stderr),
+                    )
+                    if part
+                )
+                _, partial_cost, partial_model = _parse_uwrmaxsat_output(
+                    partial_output
+                )
+                partial_assignment: list[int] | None = None
+                partial_stats: B2BSolutionStats | None = None
+                partial_checks: list[str] = []
+                if partial_model and partial_cost is not None:
+                    (
+                        partial_assignment,
+                        partial_stats,
+                        partial_checks,
+                    ) = self._validate_model(partial_model, partial_cost)
+                if partial_cost is not None:
+                    message += f"; best returned cost={partial_cost}"
+                return self._pack_result(
+                    "TIMEOUT",
+                    partial_assignment,
+                    partial_stats,
+                    partial_checks,
+                    solver_cost=partial_cost,
+                    solver_backend="UWrMaxSAT",
+                    solver_message=message,
+                    solver_command=shlex.join(command),
+                )
+            except OSError as exc:
+                message = f"cannot execute UWrMaxSAT: {exc}"
+                return self._pack_result(
+                    "ERROR",
+                    None,
+                    None,
+                    solver_backend="UWrMaxSAT",
+                    solver_message=message,
+                    solver_command=shlex.join(command),
+                )
+
+        combined_output = "\n".join(
+            part for part in (completed.stdout, completed.stderr) if part
+        )
+        raw_status, parsed_cost, sat_model = _parse_uwrmaxsat_output(combined_output)
+        normalized_status = (raw_status or "").strip().upper()
+
+        if normalized_status in {"UNSAT", "UNSATISFIABLE"}:
             return self._pack_result(
-                "OPTIMAL" if not checks else "ERROR",
-                assignment,
-                stats,
-                checks,
-                solver_cost=primary_optimum,
-                secondary_optimum=secondary_optimum,
+                "UNSAT",
+                None,
+                None,
+                solver_backend="UWrMaxSAT",
+                solver_message=(
+                    f"process exit code={completed.returncode}"
+                    if completed.returncode != 0
+                    else ""
+                ),
+                solver_command=shlex.join(command),
+            )
+
+        optimum_statuses = {"OPTIMUM FOUND", "OPTIMAL", "OPTIMUM"}
+        if normalized_status not in optimum_statuses:
+            details = raw_status or "missing status line"
+            message = (
+                f"UWrMaxSAT did not report an optimum ({details}); "
+                f"exit code={completed.returncode}"
+            )
+            stderr_tail = completed.stderr.strip().splitlines()
+            if stderr_tail:
+                message += f"; stderr: {stderr_tail[-1]}"
+            return self._pack_result(
+                "ERROR",
+                None,
+                None,
+                solver_backend="UWrMaxSAT",
+                solver_message=message,
+                solver_command=shlex.join(command),
+            )
+
+        if not sat_model and self.artifacts.n_vars > 0:
+            return self._pack_result(
+                "ERROR",
+                None,
+                None,
+                solver_backend="UWrMaxSAT",
+                solver_message="UWrMaxSAT reported an optimum but returned no model",
+                solver_command=shlex.join(command),
+            )
+
+        solver_cost = (
+            parsed_cost
+            if parsed_cost is not None
+            else self.model.encoded_objective_value(sat_model)
+        )
+        assignment, stats, validation_errors = self._validate_model(
+            sat_model,
+            solver_cost,
+        )
+
+        solver_messages: list[str] = [
+            f"process exit code={completed.returncode}"
+        ]
+
+        # Exit code chỉ là cảnh báo quy trình, không phải lỗi của nghiệm.
+        if completed.returncode not in {0, 30}:
+            solver_messages.append(
+                "UWrMaxSAT reported OPTIMUM FOUND with an unexpected process "
+                f"exit code {completed.returncode}"
             )
 
         if verbose:
             print(
-                "[MaxSAT] optimum IdleRange(P*)="
-                f"{stats.fairness_gap} (RC2 cost={primary_optimum})"
+                "[MaxSAT/UWrMaxSAT] optimum IdleRange(P*)="
+                f"{stats.objective_gap} (cost={solver_cost})"
             )
 
+            print(
+                "[MaxSAT/UWrMaxSAT] "
+                f"process exit code={completed.returncode}"
+            )
+
+            if validation_errors:
+                print("[MaxSAT/UWrMaxSAT] validation errors:")
+                for error in validation_errors:
+                    print(f"  - {error}")
+
         return self._pack_result(
-            "OPTIMAL",
+            "OPTIMAL" if not validation_errors else "ERROR",
             assignment,
             stats,
-            checks,
-            solver_cost=primary_optimum,
+            validation_errors,
+            solver_cost=solver_cost,
+            solver_backend="UWrMaxSAT",
+            solver_message="; ".join(solver_messages),
+            solver_command=shlex.join(command),
         )
+
+    def solve(self, verbose: bool = False) -> dict[str, Any]:
+        if self.backend == "rc2":
+            return self._solve_with_rc2(verbose)
+
+        binary = self.resolved_uwrmaxsat_bin
+        if binary is None:  # Guard against mutation after constructor validation.
+            raise FileNotFoundError(UWRMAXSAT_NOT_FOUND_MESSAGE)
+        return self._solve_with_uwrmaxsat(binary, verbose)
 
 
 def solve_b2b(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
-    precedence_mode: str = "traditional",
+    precedence_mode: str | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
-    objective_mode: str = "idle-range",
-    precedence_edge_mode: str = "direct",
+    domain_mode: str = "reduced",
+    *,
+    precedence_encoding: str | None = None,
+    precedence_graph: str | None = None,
+    domain_filter_graph: str = "distance_closure",
+    backend: MaxSATBackend | str | None = None,
+    uwrmaxsat_bin: str | Path | None = None,
+    uwrmaxsat_sha256: str | None = None,
+    uwrmaxsat_timeout: float | None = None,
 ) -> dict[str, Any]:
     return B2BMaxSATSolver(
         instance_or_path=instance_or_path,
-        fairness_limit=fairness_limit,
         precedence_mode=precedence_mode,
+        precedence_encoding=precedence_encoding,
+        precedence_graph=precedence_graph,
         encoding_variant=encoding_variant,
-        objective_mode=objective_mode,
-        precedence_edge_mode=precedence_edge_mode,
+        domain_mode=domain_mode,
+        domain_filter_graph=domain_filter_graph,
+        backend=backend,
+        uwrmaxsat_bin=uwrmaxsat_bin,
+        uwrmaxsat_sha256=uwrmaxsat_sha256,
+        uwrmaxsat_timeout=uwrmaxsat_timeout,
     ).solve(verbose=verbose)
 
 
 def solve_b2b_traditional(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
-    objective_mode: str = "idle-range",
-    precedence_edge_mode: str = "direct",
+    domain_mode: str = "reduced",
+    **kwargs: Any,
 ) -> dict[str, Any]:
     return solve_b2b(
-        instance_or_path,
-        fairness_limit,
-        "traditional",
-        encoding_variant,
-        verbose,
-        objective_mode,
-        precedence_edge_mode,
+        instance_or_path=instance_or_path,
+        precedence_mode="traditional",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+        **kwargs,
     )
 
 
 def solve_b2b_staircase(
     instance_or_path: B2BInstance | str | Path,
-    fairness_limit: int | None = None,
     encoding_variant: str = "imp12+",
     verbose: bool = False,
-    objective_mode: str = "idle-range",
-    precedence_edge_mode: str = "direct",
+    domain_mode: str = "reduced",
+    **kwargs: Any,
 ) -> dict[str, Any]:
     return solve_b2b(
-        instance_or_path,
-        fairness_limit,
-        "staircase",
-        encoding_variant,
-        verbose,
-        objective_mode,
-        precedence_edge_mode,
+        instance_or_path=instance_or_path,
+        precedence_mode="staircase",
+        encoding_variant=encoding_variant,
+        verbose=verbose,
+        domain_mode=domain_mode,
+        **kwargs,
     )

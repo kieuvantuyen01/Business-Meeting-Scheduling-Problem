@@ -1,0 +1,15 @@
+{
+  "construction": "nested_witness_consistent_precedence_dag",
+  "edge_budget": "sum_p floor(gamma * degree(p) / 100)",
+  "gamma_levels": [
+    50,
+    60
+  ],
+  "generated_instance_count": 40,
+  "global_seed": 20260724,
+  "official_archive_member": false,
+  "schema_version": 1,
+  "source_directory": "data_table03_origin",
+  "source_instance_count": 20,
+  "witness_method": "lexicographically_smallest_slot_vector_by_meeting_id"
+}

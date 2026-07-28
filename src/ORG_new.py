@@ -1,15 +1,28 @@
 import sys
 import argparse
 from pysat.formula import CNF, WCNF
-from pysat.examples.rc2 import RC2
-from pysat.card import CardEnc, EncType, ITotalizer
+from pysat.card import CardEnc, EncType
 from math import inf, sqrt
 import subprocess
+import shlex
 import time
 import os
-import glob
-import csv
 import threading
+import tempfile
+from pathlib import Path
+
+from Excel_Results import FORMULA_SCOPE, RUNTIME_SCOPE, safe_workbook_name, write_instance_workbook
+from Main import (
+    collect_instances,
+    experiment_metadata,
+    instance_result_metadata,
+    write_detailed_csv,
+)
+from MaxSAT_Solver import (
+    UWRMAXSAT_NOT_FOUND_MESSAGE,
+    executable_sha256,
+    resolve_uwrmaxsat_binary,
+)
 
 try:
     import psutil
@@ -21,65 +34,72 @@ except ImportError:
 def parse_args():
     parser = argparse.ArgumentParser(
         description=(
-            'Solve B2B instances with the ORG MaxSAT encoding and an optional '
-            'hard fairness-gap bound.'
+            'Solve B2B instances with the paper-style ORG MaxSAT encoding. '
+            'The objective minimizes IdleRange(P*) over participants with at '
+            'least two meetings; no hard objective cap is added.'
         )
     )
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument('--instance', help='single .dzn instance')
+    input_group.add_argument('--data-dir', help='SHA-256-deduplicated .dzn directory')
+    input_group.add_argument('--manifest', help='canonical instances_manifest.csv')
     parser.add_argument(
-        '--fairness',
-        type=int,
-        default=1000,
+        '--family',
+        choices=['all', 'original', 'forbidden', 'fixed', 'precedence'],
+        default='all',
+    )
+    parser.add_argument(
+        '--keep-path-aliases',
+        action='store_true',
         help=(
-            'Hard upper bound on max_p B(p) - min_p B(p). '
-            'Default: 1000. Use a negative value to disable the hard bound.'
+            'with --data-dir, run every selected .dzn path even when multiple '
+            'paths have identical SHA-256 content'
         ),
     )
-    return parser.parse_args()
+    parser.add_argument('--timeout', type=float, default=7200.0)
+    parser.add_argument('--uwrmaxsat-bin')
+    parser.add_argument('--uwrmaxsat-sha256')
+    parser.add_argument('--csv')
+    parser.add_argument('--excel-dir')
+    args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error('--timeout must be positive')
+    if args.keep_path_aliases and args.data_dir is None:
+        parser.error('--keep-path-aliases requires --data-dir')
+    return args
 
 
 ARGS = parse_args()
-HARD_FAIRNESS_LIMIT = None if ARGS.fairness < 0 else ARGS.fairness
 
-# Folder chứa toàn bộ file .dzn
-INPUT_DIR = './data_table06_forb'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
-# Folder chứa kết quả
-OUTPUT_DIR = './output'
+OUTPUT_DIR = os.path.join(PROJECT_DIR, 'output')
 
 # Một bảng CSV tổng hợp cho toàn bộ instance, tương tự detailed CSV trong Main.
-CSV_OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'ORG_new_results_table06.csv')
+CSV_OUTPUT_FILE = ARGS.csv or os.path.join(
+    OUTPUT_DIR,
+    'ORG_new_baseline_results.csv',
+)
+EXCEL_OUTPUT_DIR = Path(ARGS.excel_dir or (Path(CSV_OUTPUT_FILE).parent / 'excel_org'))
 
 # Giống Main.py: lấy peak RSS của tiến trình chạy instance và toàn bộ child process.
 MEMORY_SAMPLE_INTERVAL_S = 0.05
 MEMORY_METRIC = 'peak_process_tree_rss_mb'
-
-CSV_FIELDS = [
-    'instance',
-    'sat_result',
-    'status',
-    'total_runtime_s',
-    'input_parsing_s',
-    'constraint_building_s',
-    'solver_runtime_s',
-    'peak_memory_mb',
-    'memory_metric',
-    'n_vars',
-    'n_hard_clauses',
-    'n_soft_clauses',
-    'n_total_clauses',
-    'solver',
-    'solver_cost',
-    'fairness_gap',
-    'hard_fairness_limit',
-    'participant_gap_slots',
-    'assignment_by_meeting',
-    'schedule_by_slot',
-    'validation_status',
-    'error_type',
-    'error_message',
-]
+ORG_IMPLIED_PACKAGE_CODE = 'OBIC12P'
+ORG_IMPLIED_PACKAGE_NAME = 'OldBestIC12+'
+ORG_ENCODING_VARIANT = 'org_old_best_ic12plus'
+ORG_CONFIGURATION_LABEL = (
+    f'ORG-F-PW-DE-PSC-IRP-UW-{ORG_IMPLIED_PACKAGE_CODE}'
+)
+ORG_CONFIGURATION_ID = (
+    'baseline1__model-org_old_best_maxsat__m-full__p-pairwise__'
+    'g-direct__b-per_slot_cardinality__o-idle_range_pstar__'
+    's-uwrmaxsat__i-old_best_ic12plus__fairness-none'
+)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+EXCEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _process_tree_rss_bytes(pid):
@@ -177,18 +197,44 @@ def status_to_sat_result(status):
 
 csv_results = []
 
-# Lấy toàn bộ file .dzn trong folder
-input_files = sorted(
-    glob.glob(os.path.join(INPUT_DIR, '*.dzn'))
+instance_specs = collect_instances(
+    ARGS.instance,
+    ARGS.data_dir,
+    ARGS.manifest,
+    ARGS.family,
+    ARGS.keep_path_aliases,
 )
+experiment = experiment_metadata(ARGS, None, runner_path=__file__)
 
-print(f'Found {len(input_files)} input files')
+UWRMAXSAT_BINARY = resolve_uwrmaxsat_binary(ARGS.uwrmaxsat_bin)
+if UWRMAXSAT_BINARY is None:
+    raise SystemExit(f'ERROR: {UWRMAXSAT_NOT_FOUND_MESSAGE}')
+UWRMAXSAT_BINARY_SHA256 = executable_sha256(UWRMAXSAT_BINARY)
+expected_uwr_sha256 = (ARGS.uwrmaxsat_sha256 or '').strip().lower()
+if expected_uwr_sha256 and (
+    len(expected_uwr_sha256) != 64
+    or any(char not in '0123456789abcdef' for char in expected_uwr_sha256)
+):
+    raise SystemExit(
+        'ERROR: --uwrmaxsat-sha256 must be a 64-character hex digest'
+    )
+if expected_uwr_sha256 and expected_uwr_sha256 != UWRMAXSAT_BINARY_SHA256:
+    raise SystemExit(
+        'ERROR: UWrMaxSAT executable SHA-256 mismatch: '
+        f'expected {expected_uwr_sha256}, got {UWRMAXSAT_BINARY_SHA256}'
+    )
+
+print(
+    f'Found {len(instance_specs)} selected input paths '
+    f'(content_deduplicated={not ARGS.keep_path_aliases})'
+)
 
 test_counter = 0
 
-for input_file in input_files:
+for instance_spec in instance_specs:
     test_counter += 1
 
+    input_file = str(instance_spec.path)
     base_name = os.path.basename(input_file)
 
     print(f"\n{'=' * 60}")
@@ -439,36 +485,106 @@ for input_file in input_files:
         cnf.extend(ALO(commanders))
 
     def add_comparator(left, right, high, low):
-        """Exact Boolean comparator: high=left OR right, low=left AND right."""
+        """Exact comparator used by the cardinality/sorting networks."""
+        # high <-> (left OR right)
         cnf.append([-left, high])
         cnf.append([-right, high])
         cnf.append([left, right, -high])
+        # low <-> (left AND right)
         cnf.append([left, -low])
         cnf.append([right, -low])
         cnf.append([-left, -right, low])
 
+    network_false_var = 0
+
+    def _network_false_literal():
+        """Return a shared Boolean constant fixed to false for network padding."""
+        global variable_size, network_false_var
+        if network_false_var == 0:
+            network_false_var = variable_size + 1
+            variable_size += 1
+            cnf.append([-network_false_var])
+        return network_false_var
+
     def sort_descending(lits):
-        """Return exact unary sorting outputs in descending Boolean order."""
+        """Sort Boolean literals with a Batcher odd-even cardinality network.
+
+        Output k-1 is true exactly when at least k input literals are true.  This
+        is the unary/sorted representation used by the paper for sort(.,.) and
+        for the cardinality-network implementation of Constraints (44)-(45).
+        """
         global variable_size
-        outputs = []
-        for lit in lits:
-            carry = lit
-            next_outputs = []
-            for existing in outputs:
-                high = variable_size + 1
-                variable_size += 1
-                low = variable_size + 1
-                variable_size += 1
-                add_comparator(carry, existing, high, low)
-                next_outputs.append(high)
-                carry = low
-            next_outputs.append(carry)
-            outputs = next_outputs
-        return outputs
+
+        if not lits:
+            return []
+        if len(lits) == 1:
+            return list(lits)
+
+        # Batcher's odd-even merge network is defined for powers of two. False
+        # padding preserves all threshold values of the original input list.
+        size = 1
+        while size < len(lits):
+            size *= 2
+        wires = list(lits)
+        if len(wires) < size:
+            wires.extend([_network_false_literal()] * (size - len(wires)))
+
+        def compare(i, j):
+            global variable_size
+            high = variable_size + 1
+            low = variable_size + 2
+            variable_size = low
+            add_comparator(wires[i], wires[j], high, low)
+            wires[i], wires[j] = high, low
+
+        def odd_even_merge(lo, length, stride):
+            step = stride * 2
+            if step < length:
+                odd_even_merge(lo, length, step)
+                odd_even_merge(lo + stride, length, step)
+                for index in range(lo + stride, lo + length - stride, step):
+                    compare(index, index + stride)
+            else:
+                compare(lo, lo + stride)
+
+        def odd_even_merge_sort(lo, length):
+            if length > 1:
+                half = length // 2
+                odd_even_merge_sort(lo, half)
+                odd_even_merge_sort(lo + half, half)
+                odd_even_merge(lo, length, 1)
+
+        odd_even_merge_sort(0, size)
+        return wires[:len(lits)]
+
+    def build_meeting_clusters():
+        """Greedy partition Π used by the paper's Constraints (46)-(47)."""
+        unassigned = set(range(1, nMeetings + 1))
+        clusters = []
+        while unassigned:
+            best = []
+            for p in range(1, nBusiness + 1):
+                candidate = sorted(unassigned.intersection(meetingsxBusiness[p]))
+                if len(candidate) > len(best):
+                    best = candidate
+            if not best:
+                best = [min(unassigned)]
+            clusters.append(best)
+            unassigned.difference_update(best)
+        return clusters
 
 
     start_time = time.time()
     nBusiness, nMeetings, nTables, nTotalSlots, nMorningSlots, requested, meetingsxBusiness, nMeetingsBusiness, forbidden, fixed, precedences = read_input()
+    objective_participants = [
+        p for p in range(1, nBusiness + 1)
+        if nMeetingsBusiness[p] >= 2
+    ]
+    # The range of an empty or singleton P* is zero, so no break-objective
+    # variables are required in those degenerate cases.
+    objective_encoding_participants = (
+        objective_participants if len(objective_participants) >= 2 else []
+    )
     input_time = time.time()
     print(f"Input parsing completed in {input_time - start_time:.4f} seconds")
 
@@ -481,7 +597,7 @@ for input_file in input_files:
     # print("Precedences:", precedences)
 
     # HARD CONSTRAINTS: keep the original meeting-centered encoding.
-    # Only the break/fairness semantics and objective are replaced below.
+    # Only the break-range semantics and P* objective are replaced below.
 
     # x[m][t] = 1 iff meeting m is scheduled at time slot t.
     x = [[0 for _ in range(nTotalSlots + 1)] for _ in range(nMeetings + 1)]
@@ -509,7 +625,7 @@ for input_file in input_files:
             y[p][t] = variable_size + 1
             variable_size += 1
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for t in range(1, nTotalSlots + 1):
             prefix[p][t] = variable_size + 1
             variable_size += 1
@@ -546,12 +662,36 @@ for input_file in input_files:
             # clauses = CardEnc.equals(lits=lits, bound=1, encoding=EncType.seqcounter, top_id=variable_size)
             commander_EO(lits)
 
-    # At most nTables meetings can happen at the same time (21)
+    # Further improvement from the paper, Constraints (46)-(47): replace
+    # meeting-level capacity (21) by a sequential-counter capacity constraint
+    # over greedily constructed clusters of mutually exclusive meetings.
+    meeting_clusters = build_meeting_clusters()
+    cluster_active = [
+        [0 for _ in range(nTotalSlots + 1)]
+        for _ in range(len(meeting_clusters))
+    ]
+
+    for c in range(len(meeting_clusters)):
+        for t in range(1, nTotalSlots + 1):
+            cluster_active[c][t] = variable_size + 1
+            variable_size += 1
+
     for t in range(1, nTotalSlots + 1):
-        lits = [x[m][t] for m in range(1, nMeetings + 1)]
-        if len(lits) > nTables:
+        active_lits = []
+        for c, meetings in enumerate(meeting_clusters):
+            active = cluster_active[c][t]
+            active_lits.append(active)
+            # Constraint (46): schedule[m,t] -> clusterActive[c,t].
+            for m in meetings:
+                cnf.append([-x[m][t], active])
+
+        # Constraint (47), encoded by a sequential counter as specified in §4.6.
+        if len(active_lits) > nTables:
             atmost_tables = CardEnc.atmost(
-                lits=lits, bound=nTables, encoding=EncType.seqcounter, top_id=variable_size
+                lits=active_lits,
+                bound=nTables,
+                encoding=EncType.seqcounter,
+                top_id=variable_size,
             )
             variable_size = max(variable_size, atmost_tables.nv)
             cnf.extend(atmost_tables.clauses)
@@ -569,26 +709,20 @@ for input_file in input_files:
             t = fixed[m]
             cnf.append([x[m][t]])
     
-    # Handle forbidden time slots (27)
+    # Forbidden time slots (27), directly over schedule variables as in
+    # the paper: every meeting of p is forbidden at each slot in forb(p).
     for p in range(1, nBusiness + 1):
         for t in forbidden[p]:
-            cnf.append([-y[p][t]])
-    
-    # Handle precedence constraints (28)
+            for m in meetingsxBusiness[p]:
+                cnf.append([-x[m][t]])
+
+    # Traditional pairwise precedence encoding (28) from the paper:
+    # schedule[prec,j0] -> not schedule[m,j] for every j0 >= j.
     for m in range(1, nMeetings + 1):
         for prec in precedences[m]:
-            # Add staircase constraints (meeting prec must be scheduled before meeting m)
-            sfx = [0 for _ in range(nTotalSlots + 1)]
-            sfx[nTotalSlots] = x[prec][nTotalSlots]
-            for t in range(nTotalSlots - 1, 0, -1):
-                sfx[t] = variable_size + 1
-                variable_size += 1
-                cnf.append([-x[prec][t], sfx[t]])  # x[prec][t] => sfx[t]
-                cnf.append([-sfx[t + 1], sfx[t]])  # sfx[t + 1] => sfx[t]
-                cnf.append([x[prec][t], sfx[t + 1], -sfx[t]])  # not x[prec][t] and not sfx[t + 1] => not sfx[t]
-            # Strict precedence: prec must be at slot < t (not at t or later)
             for t in range(1, nTotalSlots + 1):
-                cnf.append([-x[m][t], -sfx[t]])
+                for prec_t in range(t, nTotalSlots + 1):
+                    cnf.append([-x[prec][prec_t], -x[m][t]])
             
     # If a meeting is scheduled at time slot t then y[p1][t] and y[p2][t] must be true (29)
     # => x[m][t] -> y[p1][t] and y[p2][t]
@@ -612,7 +746,7 @@ for input_file in input_files:
     # ------------------------------------------------------------------
 
     # prefix[p][t] <-> OR(y[p][1], ..., y[p][t]).
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         if nTotalSlots >= 1:
             cnf.append([y[p][1], -prefix[p][1]])
             cnf.append([-y[p][1], prefix[p][1]])
@@ -622,7 +756,7 @@ for input_file in input_files:
             cnf.append([y[p][t], prefix[p][t - 1], -prefix[p][t]])
 
     # suffix[p][t] <-> OR(y[p][t], ..., y[p][T]).
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         if nTotalSlots >= 1:
             cnf.append([y[p][nTotalSlots], -suffix[p][nTotalSlots]])
             cnf.append([-y[p][nTotalSlots], suffix[p][nTotalSlots]])
@@ -633,7 +767,7 @@ for input_file in input_files:
 
     # gap_slot[p][t] <-> prefix[p][t-1] AND not y[p][t]
     #                                  AND suffix[p][t+1].
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for t in range(2, nTotalSlots):
             g = gap_slot[p][t]
             cnf.append([-g, prefix[p][t - 1]])
@@ -649,15 +783,18 @@ for input_file in input_files:
         if nMeetingsBusiness[p] >= 2:
             participant_gap_upper[p] = max(0, nTotalSlots - nMeetingsBusiness[p])
 
-    max_gap_slots = max(participant_gap_upper, default=0)
+    max_gap_slots = max(
+        (participant_gap_upper[p] for p in objective_encoding_participants),
+        default=0,
+    )
     sortedGap = [[0 for _ in range(max_gap_slots + 1)] for _ in range(nBusiness + 1)]
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         for j in range(1, max_gap_slots + 1):
             sortedGap[p][j] = variable_size + 1
             variable_size += 1
 
-    for p in range(1, nBusiness + 1):
+    for p in objective_encoding_participants:
         gap_lits = [gap_slot[p][t] for t in range(2, nTotalSlots)]
         upper = min(participant_gap_upper[p], len(gap_lits))
 
@@ -674,10 +811,10 @@ for input_file in input_files:
             cnf.append([-sortedGap[p][j]])
 
     # Exact unary maximum, minimum, and their difference. For each j:
-    # maxGap[j] = OR_p sortedGap[p][j]
-    # minGap[j] = AND_p sortedGap[p][j]
+    # maxGap[j] = OR_{p in P*} sortedGap[p][j]
+    # minGap[j] = AND_{p in P*} sortedGap[p][j]
     # difGap[j] = maxGap[j] AND not minGap[j]
-    # Therefore sum_j difGap[j] = max_p G_p - min_p G_p.
+    # Therefore sum_j difGap[j] = max_{p in P*} G_p - min_{p in P*} G_p.
     maxGap = [0 for _ in range(max_gap_slots + 1)]
     minGap = [0 for _ in range(max_gap_slots + 1)]
     difGap = [0 for _ in range(max_gap_slots + 1)]
@@ -690,7 +827,9 @@ for input_file in input_files:
         difGap[j] = variable_size + 1
         variable_size += 1
 
-        threshold_lits = [sortedGap[p][j] for p in range(1, nBusiness + 1)]
+        threshold_lits = [
+            sortedGap[p][j] for p in objective_encoding_participants
+        ]
         if threshold_lits:
             # maxGap[j] <-> OR(threshold_lits)
             for lit in threshold_lits:
@@ -715,28 +854,8 @@ for input_file in input_files:
         cnf.append([-maxGap[j + 1], maxGap[j]])
         cnf.append([-minGap[j + 1], minGap[j]])
 
-    # Optional hard fairness constraint, matching B2B_Instance:
-    #     sum_j difGap[j] <= HARD_FAIRNESS_LIMIT
-    # Since sum_j difGap[j] is exactly max_p B(p) - min_p B(p), this is
-    # equivalent to bounding the fairness gap directly.
-    fairness_lits = [difGap[j] for j in range(1, max_gap_slots + 1)]
-    fairness_constraint_clauses = 0
-    if HARD_FAIRNESS_LIMIT is not None:
-        before_fairness = len(cnf.clauses)
-        if HARD_FAIRNESS_LIMIT == 0:
-            cnf.extend([[-lit] for lit in fairness_lits])
-        elif HARD_FAIRNESS_LIMIT < len(fairness_lits):
-            fairness_encoding = CardEnc.atmost(
-                lits=fairness_lits,
-                bound=HARD_FAIRNESS_LIMIT,
-                encoding=EncType.seqcounter,
-                top_id=variable_size,
-            )
-            cnf.extend(fairness_encoding.clauses)
-            variable_size = max(variable_size, fairness_encoding.nv)
-        # If the bound is at least the number of objective literals, the
-        # constraint is tautological and B2B_Instance also adds no clauses.
-        fairness_constraint_clauses = len(cnf.clauses) - before_fairness
+    # No hard objective cap is generated. The difGap literals are objective
+    # literals only; all feasible schedules remain admissible.
 
     # Imp1: The number of meetings of a participant p must equal nMeetingsBusiness[p] (43)
     for p in range(1, nBusiness + 1):
@@ -745,25 +864,22 @@ for input_file in input_files:
         cnf.extend(clauses)
         variable_size = max(variable_size, clauses.nv)
     
-    # Imp2: The number of participants having a meeting in a given time slot is bounded by twice the number of available locations (44)
-    # for t in range(1, nTotalSlots + 1):
-    #     lits = [y[p][t] for p in range(1, nBusiness + 1)]
-    #     clauses = CardEnc.atmost(lits=lits, bound=2*nTables, encoding=EncType.cardnetwrk, top_id=variable_size)
-    #     cnf.extend(clauses)
-    #     variable_size = max(variable_size, clauses.nv)
-
-    # Apply Itotalizer to (44)
+    # Imp2 (44) and the even-participant strengthening (45).  The paper
+    # encodes (44) with a cardinality network and applies (45) directly to its
+    # sorted unary outputs.  output[k-1] means that at least k participants are
+    # active in this slot.
     for t in range(1, nTotalSlots + 1):
         lits = [y[p][t] for p in range(1, nBusiness + 1)]
-        if len(lits) > 2*nTables:
-            itotalizer = ITotalizer(lits=lits, ubound=2*nTables + 1, top_id=variable_size)
-            cnf.extend(itotalizer.cnf)
-            variable_size = max(variable_size, itotalizer.cnf.nv)
-            # Enforce at-most 2*nTables: forbid the (2*nTables+1)-th output being true
-            cnf.append([-itotalizer.rhs[2*nTables]])
-            for i in range(0, 2*nTables, 2):
-                if i + 1 < 2 * nTables:
-                    cnf.append([-itotalizer.rhs[i], itotalizer.rhs[i + 1]])
+        if len(lits) > 2 * nTables:
+            outputs = sort_descending(lits)
+
+            # atMost(2*nTables): forbid count >= 2*nTables + 1.
+            cnf.append([-outputs[2 * nTables]])
+
+            # Constraint (45): o_i -> o_(i+1) for odd one-based i.
+            # Together with sorted-output monotonicity this forces an even count.
+            for i in range(0, 2 * nTables, 2):
+                cnf.append([-outputs[i], outputs[i + 1]])
 
     
     # Add hard clauses 
@@ -771,9 +887,9 @@ for input_file in input_files:
         wcnf.append(clause)  # Default weight is top (hard)
 
     # SOFT CONSTRAINTS:
-    # Minimize the fairness gap, not the sum of participant breaks.
+    # Minimize IdleRange(P*), not the sum of participant breaks.
     # One violated soft clause corresponds to one unit of
-    # max(total_gap_slots) - min(total_gap_slots).
+    # max_{p in P*}(total_gap_slots) - min_{p in P*}(total_gap_slots).
     for j in range(1, max_gap_slots + 1):
         wcnf.append([-difGap[j]], weight=1)
 
@@ -783,75 +899,97 @@ for input_file in input_files:
     print(f"Total hard clauses: {len(cnf.clauses)}")
     print(f"Total soft clauses: {max_gap_slots}")
     print(
-        'Hard fairness limit: '
-        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'} "
-        f"(added clauses: {fairness_constraint_clauses})"
+        'Hard objective cap: disabled (added clauses: 0)'
     )
 
-    def solve_maxsat():
-        local_bin = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'uwrmaxsat', 'build', 'release', 'bin', 'uwrmaxsat'
-        )
-        UWRMAXSAT_BIN = os.environ.get('UWRMAXSAT_BIN', local_bin)
-        WCNF_FILE = 'maxHS_gap_fairness.wcnf'
-        TIMEOUT = 3600  # 1 hour
+    def parse_uwr_output(output):
+        model = []
+        solution_cost = None
+        status = None
+        for raw_line in output.splitlines():
+            line = raw_line.strip()
+            if line.startswith('s '):
+                status = line[2:].strip()
+            elif line.startswith('o '):
+                try:
+                    solution_cost = int(line[2:].strip())
+                except ValueError:
+                    pass
+            elif line.startswith('v '):
+                for token in line[2:].split():
+                    try:
+                        literal = int(token)
+                    except ValueError:
+                        continue
+                    if literal != 0:
+                        model.append(literal)
+        return status, solution_cost, model
 
-        if os.path.isfile(UWRMAXSAT_BIN) and os.access(UWRMAXSAT_BIN, os.X_OK):
-            try:
-                result = subprocess.run(
-                    [UWRMAXSAT_BIN, '-m', WCNF_FILE],
-                    capture_output=True, text=True, timeout=TIMEOUT
-                )
-                output = result.stdout
+    def solve_maxsat(wcnf_path):
+        command = [str(UWRMAXSAT_BINARY), '-m', str(wcnf_path)]
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=ARGS.timeout,
+                check=False,
+                start_new_session=(os.name != 'nt'),
+            )
+            output = '\n'.join(
+                part for part in (result.stdout, result.stderr) if part
+            )
+            status, solution_cost, model = parse_uwr_output(output)
+            normalized_status = (status or '').upper()
+            if normalized_status in {'OPTIMUM FOUND', 'OPTIMAL', 'OPTIMUM'} and model:
+                print(f"UWrMaxSAT optimum IdleRange(P*): {solution_cost}")
+                return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL', command
+            if normalized_status in {'UNSAT', 'UNSATISFIABLE'}:
+                return None, None, 'UWrMaxSAT', 'UNSAT', command
+            print(f"UWrMaxSAT status: {status}")
+            return None, solution_cost, 'UWrMaxSAT', 'ERROR', command
+        except subprocess.TimeoutExpired as exc:
+            partial_parts = []
+            for part in (exc.stdout, exc.stderr):
+                if isinstance(part, bytes):
+                    part = part.decode(errors='replace')
+                if part:
+                    partial_parts.append(part)
+            _, solution_cost, model = parse_uwr_output('\n'.join(partial_parts))
+            print(f"TIMEOUT: UWrMaxSAT timeout after {ARGS.timeout} seconds")
+            return (
+                model or None,
+                solution_cost,
+                'UWrMaxSAT',
+                'TIMEOUT',
+                command,
+            )
 
-                model = []
-                solution_cost = None
-                status = None
-
-                for line in output.splitlines():
-                    if line.startswith('s '):
-                        status = line[2:].strip()
-                    elif line.startswith('o '):
-                        solution_cost = int(line[2:].strip())
-                    elif line.startswith('v '):
-                        model.extend(int(lit) for lit in line[2:].split())
-
-                if status == 'OPTIMUM FOUND' and model:
-                    print(f"UWrMaxSAT optimum fairness gap: {solution_cost}")
-                    return model, solution_cost, 'UWrMaxSAT', 'OPTIMAL'
-
-                print(f"UWrMaxSAT status: {status}")
-                normalized_status = (status or '').upper()
-                csv_status = (
-                    'UNSAT'
-                    if normalized_status in {'UNSAT', 'UNSATISFIABLE'}
-                    else 'ERROR'
-                )
-                return None, None, 'UWrMaxSAT', csv_status
-
-            except subprocess.TimeoutExpired:
-                print(f"TIMEOUT: UWrMaxSAT timeout after {TIMEOUT} seconds")
-                return None, None, 'UWrMaxSAT', 'TIMEOUT'
-
-        # Portable fallback: same WCNF encoding, solved by PySAT RC2.
-        print('UWrMaxSAT binary not found; using PySAT RC2 fallback.')
-        with RC2(wcnf) as solver:
-            model = solver.compute()
-            if model is None:
-                return None, None, 'RC2', 'UNSAT'
-            return model, solver.cost, 'RC2', 'OPTIMAL'
-
-    # Write the WCNF to a file
-    wcnf.to_file('maxHS_gap_fairness.wcnf')
+    with tempfile.NamedTemporaryFile(
+        prefix=f'org_{Path(base_name).stem}_',
+        suffix='.wcnf',
+        delete=False,
+    ) as temp_wcnf:
+        wcnf_path = Path(temp_wcnf.name)
+    wcnf.to_file(str(wcnf_path))
 
     # Solve
     solve_start = time.time()
-    assignment, solver_cost, solver_used, solve_status = solve_maxsat()
+    try:
+        (
+            assignment,
+            solver_cost,
+            solver_used,
+            solve_status,
+            solver_command,
+        ) = solve_maxsat(wcnf_path)
+    finally:
+        wcnf_path.unlink(missing_ok=True)
+    solver_finished = time.time()
 
     # Independently recompute the new objective from the decoded schedule.
     participant_gap_slots = []
-    fairness_gap = None
+    idle_range_pstar = None
     if assignment:
         positive_assignment = {lit for lit in assignment if lit > 0}
         for p in range(1, nBusiness + 1):
@@ -870,22 +1008,22 @@ for input_file in input_files:
                     if t not in busy_set
                 ))
 
-        fairness_gap = (
-            max(participant_gap_slots, default=0)
-            - min(participant_gap_slots, default=0)
+        objective_values = [
+            participant_gap_slots[p - 1] for p in objective_participants
+        ]
+        idle_range_pstar = (
+            max(objective_values) - min(objective_values)
+            if len(objective_values) >= 2
+            else 0
         )
         if solver_cost is not None:
-            assert solver_cost == fairness_gap, (
+            assert solver_cost == idle_range_pstar, (
                 f"Objective mismatch: solver_cost={solver_cost}, "
-                f"recomputed_fairness_gap={fairness_gap}"
+                f"recomputed_IdleRange(P*)={idle_range_pstar}"
             )
-    solve_time = time.time()
-    print(f"MaxSAT solving completed in {solve_time - solve_start:.4f} seconds")
+    print(f"MaxSAT solving completed in {solver_finished - solve_start:.4f} seconds")
 
     # print(assignment)
-
-    end_time = time.time()
-    total_time = end_time - start_time
 
     # Output the schedule based on the assignment
 
@@ -894,10 +1032,6 @@ for input_file in input_files:
     #         for t in range(1, nTotalSlots + 1):
     #             if x[m][t] in assignment:
     #                 print(f"Meeting {m} → Time slot {t}")
-
-    print(f"\n{'='*60}")
-    print(f"TOTAL RUNTIME: {total_time:.4f} seconds ({total_time:.2f}s)")
-    print(f"{'='*60}")
 
     # Build schedule serializations for the aggregate CSV.
     schedule_pairs = []
@@ -962,8 +1096,8 @@ for input_file in input_files:
                     f"(y={is_true(y[p][t])}, has_x={has_x})"
                 )
 
-        # Exact prefix/suffix and internal gap-slot semantics.
-        for p in range(1, nBusiness + 1):
+        # Exact prefix/suffix and internal gap-slot semantics for P*.
+        for p in objective_encoding_participants:
             busy = [is_true(y[p][t]) for t in range(1, nTotalSlots + 1)]
             for t in range(1, nTotalSlots + 1):
                 expected_prefix = any(busy[:t])
@@ -993,10 +1127,10 @@ for input_file in input_files:
                     f"sortedGap[{p}][{j}] inconsistent with gap total {expected_count}"
                 )
 
-        # Exact maximum/minimum unary values and fairness-difference objective.
+        # Exact maximum/minimum unary values and P*-range objective.
         for j in range(1, max_gap_slots + 1):
             threshold_values = [
-                is_true(sortedGap[p][j]) for p in range(1, nBusiness + 1)
+                is_true(sortedGap[p][j]) for p in objective_encoding_participants
             ]
             expected_max = any(threshold_values)
             expected_min = all(threshold_values) if threshold_values else True
@@ -1008,15 +1142,10 @@ for input_file in input_files:
         encoded_objective = sum(
             is_true(difGap[j]) for j in range(1, max_gap_slots + 1)
         )
-        assert encoded_objective == fairness_gap, (
-            f"Encoded objective={encoded_objective}, fairness_gap={fairness_gap}"
+        assert encoded_objective == idle_range_pstar, (
+            f"Encoded objective={encoded_objective}, "
+            f"IdleRange(P*)={idle_range_pstar}"
         )
-        if HARD_FAIRNESS_LIMIT is not None:
-            assert fairness_gap <= HARD_FAIRNESS_LIMIT, (
-                f"Fairness gap {fairness_gap} exceeds hard limit "
-                f"{HARD_FAIRNESS_LIMIT}"
-            )
-
         # Participant load bound per slot
         for t in range(1, nTotalSlots + 1):
             participants_at_t = sum(is_true(y[p][t]) for p in range(1, nBusiness + 1))
@@ -1049,6 +1178,12 @@ for input_file in input_files:
                 assert prec_time < m_time, f"Meeting {prec} should be scheduled before meeting {m} (prec_time={prec_time}, m_time={m_time})"
         validation_status = 'PASSED'
 
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"\n{'='*60}")
+    print(f"TOTAL RUNTIME: {total_time:.4f} seconds ({total_time:.2f}s)")
+    print(f"{'='*60}")
+
     peak_memory_mb = memory_sampler.stop_mb()
     print(
         'Peak process-tree RSS: '
@@ -1056,44 +1191,133 @@ for input_file in input_files:
         else 'Peak process-tree RSS: N/A (install psutil to enable it)'
     )
 
-    csv_results.append({
-        'instance': os.path.splitext(base_name)[0],
+    clause_lengths = [len(clause) for clause in cnf.clauses]
+    n_primary_variables = nMeetings * nTotalSlots
+    all_participant_idle_range = (
+        max(participant_gap_slots) - min(participant_gap_slots)
+        if participant_gap_slots
+        else None
+    )
+    baseline_result = {
+        **instance_result_metadata(instance_spec),
+        **experiment,
+        'configuration_label': ORG_CONFIGURATION_LABEL,
+        'configuration_id': ORG_CONFIGURATION_ID,
+        'configuration_key': ORG_CONFIGURATION_ID,
+        'factor_m': 'ORGFull',
+        'factor_f': 'N/A',
+        'factor_p': 'Pairwise',
+        'factor_g': 'Direct-E',
+        'factor_b': 'PerSlotCardinality',
+        'factor_o': 'IdleRangePstar',
+        'factor_s': 'UWrMaxSAT',
+        'factor_i': ORG_IMPLIED_PACKAGE_NAME,
+        'domain_mode': 'legacy_full',
+        'domain_filter_graph': 'n/a',
+        'precedence_encoding': 'pairwise',
+        'precedence_graph': 'direct',
+        'optimization_engine': 'UWrMaxSAT',
+        'solver_backend': solver_used,
+        'solver_version': f'binary-sha256:{UWRMAXSAT_BINARY_SHA256}',
+        'encoding_variant': ORG_ENCODING_VARIANT,
+        'idle_encoding': 'per_slot_cardinality',
+        'objective': 'internal_idle_slot_range_pstar',
+        'objective_code': 'IRP',
+        'implied_constraints_code': ORG_IMPLIED_PACKAGE_CODE,
         'sat_result': status_to_sat_result(solve_status),
         'status': solve_status,
-        'total_runtime_s': round(total_time, 6),
-        'input_parsing_s': round(input_time - start_time, 6),
-        'constraint_building_s': round(constraint_time - input_time, 6),
-        'solver_runtime_s': round(solve_time - solve_start, 6),
+        'runtime_seconds': round(total_time, 6),
+        'input_parsing_seconds': round(input_time - start_time, 6),
+        'model_construction_seconds': round(constraint_time - input_time, 6),
+        'model_build_seconds': round(constraint_time - start_time, 6),
+        'solve_and_validate_seconds': round(end_time - constraint_time, 6),
+        'solver_runtime_seconds': round(solver_finished - solve_start, 6),
+        'runtime_scope': RUNTIME_SCOPE,
+        'runtime_censored': solve_status == 'TIMEOUT',
         'peak_memory_mb': peak_memory_mb,
         'memory_metric': MEMORY_METRIC,
         'n_vars': variable_size,
+        'n_primary_variables': n_primary_variables,
+        'n_auxiliary_variables': variable_size - n_primary_variables,
         'n_hard_clauses': len(cnf.clauses),
         'n_soft_clauses': max_gap_slots,
         'n_total_clauses': len(cnf.clauses) + max_gap_slots,
+        'n_hard_literals': sum(clause_lengths),
+        'n_soft_literals': max_gap_slots,
+        'n_total_literals': sum(clause_lengths) + max_gap_slots,
+        'max_hard_clause_length': max(clause_lengths, default=0),
+        'max_soft_clause_length': 1 if max_gap_slots else 0,
+        'n_unit_hard_clauses': sum(length == 1 for length in clause_lengths),
+        'n_binary_hard_clauses': sum(length == 2 for length in clause_lengths),
+        'n_ternary_hard_clauses': sum(length == 3 for length in clause_lengths),
+        'n_long_hard_clauses': sum(length >= 4 for length in clause_lengths),
+        'soft_clause_weight': 1 if max_gap_slots else 0,
+        'soft_weight_sum': max_gap_slots,
+        'n_objective_lits': max_gap_slots,
+        'n_optimizer_calls': 1,
+        'n_bound_encodings': 0,
+        'optimizer_added_variables_peak': 0,
+        'optimizer_added_clauses_peak': 0,
+        'optimizer_added_literals_peak': 0,
+        'optimizer_added_clauses_cumulative': 0,
+        'formula_scope': FORMULA_SCOPE,
+        'full_schedule_candidates': n_primary_variables,
+        'unary_eligible_schedule_candidates': None,
+        'reduced_schedule_candidates': None,
+        'active_schedule_candidates': n_primary_variables,
+        'precedence_direct_edges': sum(
+            len(predecessors) for predecessors in precedences[1:]
+        ),
+        'precedence_closure_edges': None,
+        'precedence_relation_edges': sum(
+            len(predecessors) for predecessors in precedences[1:]
+        ),
+        'precedence_max_distance': 1,
+        'precedence_pairwise_clauses': None,
+        'precedence_sparse_link_clauses': 0,
+        'precedence_unique_suffix_cuts': 0,
+        'precedence_mode': 'traditional',
+        'precedence_configuration': 'pairwise+direct',
         'solver': solver_used,
+        'solver_binary': str(UWRMAXSAT_BINARY),
+        'solver_binary_sha256': UWRMAXSAT_BINARY_SHA256,
+        'solver_command': shlex.join(solver_command),
+        'solver_message': '',
         'solver_cost': solver_cost,
-        'fairness_gap': fairness_gap,
-        'hard_fairness_limit': HARD_FAIRNESS_LIMIT,
+        'objective_value': solver_cost,
+        'best_value': solver_cost,
+        'proven_optimum': solver_cost if solve_status == 'OPTIMAL' else None,
+        'idle_range_pstar': idle_range_pstar,
+        'all_participant_idle_range': all_participant_idle_range,
+        'total_internal_idle_slots': (
+            sum(participant_gap_slots) if participant_gap_slots else None
+        ),
+        'objective_participant_count': len(objective_participants),
+        'objective_participants': serialize_list(objective_participants),
         'participant_gap_slots': serialize_list(participant_gap_slots),
         'assignment_by_meeting': serialize_assignment(schedule_pairs),
         'schedule_by_slot': serialize_schedule(meetings_per_slot),
         'validation_status': validation_status,
+        'validation_errors': '',
         'error_type': '',
         'error_message': '',
-    })
+    }
+    csv_results.append(baseline_result)
+    workbook_path = write_instance_workbook(
+        EXCEL_OUTPUT_DIR / safe_workbook_name(instance_spec.instance_name),
+        instance_spec.instance_name,
+        [baseline_result],
+    )
+    print(f'Excel exported to: {workbook_path}')
 
     print(
         f"Result queued for CSV: {solve_status} | "
-        f"objective={fairness_gap if fairness_gap is not None else 'N/A'} | "
-        f"hard_fairness_limit="
-        f"{HARD_FAIRNESS_LIMIT if HARD_FAIRNESS_LIMIT is not None else 'disabled'}"
+        f"IdleRange(P*)={idle_range_pstar if idle_range_pstar is not None else 'N/A'} | "
+        "hard_objective_cap=disabled"
     )
 
 
 # Xuất một bảng CSV tổng hợp sau khi chạy toàn bộ input.
-with open(CSV_OUTPUT_FILE, 'w', newline='', encoding='utf-8') as csv_file:
-    writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
-    writer.writeheader()
-    writer.writerows(csv_results)
+write_detailed_csv(Path(CSV_OUTPUT_FILE), csv_results)
 
 print(f"CSV exported to: {CSV_OUTPUT_FILE}")

@@ -96,7 +96,6 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
         inst = _instance_with_single_meeting_participant()
         model = B2BSATModel(
             inst,
-            fairness_limit=None,
             precedence_mode="traditional",
             encoding_variant="basic",
         )
@@ -108,9 +107,9 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
 
         result = B2BMaxSATSolver(
             inst,
-            fairness_limit=None,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
 
         self.assertEqual(result["status"], "OPTIMAL")
@@ -132,20 +131,18 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
         solvers = [
             B2BMaxSATSolver(
                 inst,
-                fairness_limit=None,
                 precedence_mode="traditional",
                 encoding_variant="basic",
+                backend="rc2",
             ),
             B2BMultipleSATSolver(
                 inst,
-                fairness_limit=None,
                 precedence_mode="traditional",
                 encoding_variant="basic",
                 solver_name="glucose",
             ),
             B2BIncrementalSATSolver(
                 inst,
-                fairness_limit=None,
                 precedence_mode="traditional",
                 encoding_variant="basic",
                 solver_name="glucose",
@@ -163,7 +160,6 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
         inst = _partially_fixed_instance()
         model = B2BSATModel(
             inst,
-            fairness_limit=None,
             precedence_mode="traditional",
             encoding_variant="basic",
         )
@@ -181,9 +177,9 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
 
         result = B2BMaxSATSolver(
             inst,
-            fairness_limit=None,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
         self.assertEqual(result["status"], "OPTIMAL")
         self.assertEqual(result["objective_value"], brute_force_optimum)
@@ -193,9 +189,9 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
         inst = _instance_with_one_objective_participant()
         result = B2BMaxSATSolver(
             inst,
-            fairness_limit=None,
             precedence_mode="traditional",
             encoding_variant="basic",
+            backend="rc2",
         ).solve()
 
         self.assertEqual(result["status"], "OPTIMAL")
@@ -208,24 +204,22 @@ class IdleRangeParticipantSetTests(unittest.TestCase):
         self.assertEqual(stats.idle_range, 0)
         self.assertEqual(stats.all_participant_idle_range, 3)
 
-    def test_optional_cap_is_applied_to_pstar_range(self) -> None:
+    def test_removed_fairness_and_lexicographic_options_are_rejected(self) -> None:
         inst = _instance_with_single_meeting_participant()
-        infeasible = B2BMaxSATSolver(
-            inst,
-            fairness_limit=0,
-            precedence_mode="traditional",
-            encoding_variant="basic",
-        ).solve()
-        feasible = B2BMaxSATSolver(
-            inst,
-            fairness_limit=1,
-            precedence_mode="traditional",
-            encoding_variant="basic",
-        ).solve()
+        with self.assertRaises(TypeError):
+            B2BSATModel(inst, fairness_limit=1)
+        with self.assertRaises(TypeError):
+            B2BMaxSATSolver(inst, objective_mode="lexicographic")
 
-        self.assertEqual(infeasible["status"], "UNSAT")
-        self.assertEqual(feasible["status"], "OPTIMAL")
-        self.assertEqual(feasible["objective_value"], 1)
+    def test_single_meeting_participant_has_no_break_threshold_encoding(self) -> None:
+        model = B2BSATModel(
+            _instance_with_single_meeting_participant(),
+            precedence_mode="traditional",
+            encoding_variant="basic",
+        )
+        artifacts = model.build_base_cnf()
+
+        self.assertEqual(artifacts.sorted_hole_lits_by_participant[3], [])
 
 
 if __name__ == "__main__":
