@@ -1,1 +1,0 @@
-instance,sat_result,status,total_runtime_s,input_parsing_s,constraint_building_s,solver_runtime_s,peak_memory_mb,memory_metric,n_vars,n_hard_clauses,n_soft_clauses,n_total_clauses,solver,solver_cost,fairness_gap,hard_fairness_limit,participant_gap_slots,assignment_by_meeting,schedule_by_slot,validation_status,error_type,error_message
